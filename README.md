@@ -19,7 +19,7 @@
   </p>
 
   <p align="center">
-    <a href="https://github.com/codingstar24/sonara/releases/latest">
+    <a href="https://github.com/codingstar24/sonara/releases/download/v1.0.0/Sonara.Setup.1.0.0.exe">
       <img src="https://img.shields.io/badge/⚡%20Download%20for%20Windows-Setup%20v1.0.0%20(.exe)-1ED760?style=for-the-badge&logo=windows&logoColor=white" height="40" alt="Download Sonara Setup .exe"/>
     </a>
   </p>
@@ -81,8 +81,8 @@ graph TD
 ## ⚡ Quick Download & Installation
 
 ### Option 1: Standalone Windows Installer (Recommended)
-1. Head over to the [**Releases**](https://github.com/codingstar24/sonara/releases/latest) section.
-2. Download **`Sonara Setup 1.0.0.exe`**.
+1. Head over to the [**Releases**](https://github.com/codingstar24/sonara/releases/latest) section or click directly below:
+2. ⬇️ **[Download Sonara.Setup.1.0.0.exe (124 MB)](https://github.com/codingstar24/sonara/releases/download/v1.0.0/Sonara.Setup.1.0.0.exe)**
 3. Run the setup installer and launch **Sonara** from your Desktop or Start Menu.
 
 ### Option 2: Run from Source
