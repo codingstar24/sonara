@@ -320,6 +320,12 @@ export const useQueueStore = create<QueueStoreState>()(
   }))
 );
 
+import {
+  startTrackSession,
+  finalizeSession,
+  recordPlaybackTick,
+} from '@/recommendation/telemetry';
+
 // Helper to load track from DB and play through audioEngine
 async function loadAndPlayTrack(trackId: string): Promise<void> {
   const track = await db.tracks.get(trackId);
@@ -327,6 +333,9 @@ async function loadAndPlayTrack(trackId: string): Promise<void> {
 
   const source = await db.sources.get(track.sourceId);
   if (!source) return;
+
+  const context = useQueueStore.getState().context;
+  startTrackSession(track.id, track.duration, context?.type, context?.id);
 
   usePlayerStore.getState().setCurrentTrackId(track.id);
   usePlayerStore.getState().setDuration(track.duration);
@@ -357,9 +366,14 @@ audioEngine.setEvents({
     mediaSessionManager.updatePlaybackState('paused');
   },
   onEnded: () => {
+    void finalizeSession('ended');
     void useQueueStore.getState().next(true);
   },
+  onTimeUpdate: (currentTime) => {
+    recordPlaybackTick(currentTime * 1000);
+  },
   onError: (err) => {
+    void finalizeSession('skip');
     toast.error(err.message);
     setTimeout(() => {
       void useQueueStore.getState().next(false);

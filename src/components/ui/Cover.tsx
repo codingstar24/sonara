@@ -7,6 +7,7 @@ export interface CoverProps {
   size?: number | string;
   title?: string;
   isArtist?: boolean;
+  rounded?: boolean;
   className?: string;
   style?: React.CSSProperties;
   onClick?: () => void;
@@ -28,6 +29,7 @@ export const Cover: FC<CoverProps> = ({
   size = 48,
   title = '',
   isArtist = false,
+  rounded,
   className = '',
   style,
   onClick,
@@ -63,7 +65,11 @@ export const Cover: FC<CoverProps> = ({
     };
   }, [artworkId]);
 
-  const borderRadius = isArtist ? 'var(--radius-pill)' : 'var(--radius-thumb)';
+  const borderRadius = rounded === false
+    ? '0px'
+    : isArtist
+    ? 'var(--radius-pill)'
+    : 'var(--radius-thumb)';
   const gradient = getDeterministicGradient(title || artworkId || 'Sonara');
 
   if (blobUrl && !error) {
