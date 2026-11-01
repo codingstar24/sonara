@@ -1,0 +1,79 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.sonara.player",
+  "productName": "Sonara",
+  "copyright": "Copyright © 2026 zohair. All rights reserved.",
+  "extraMetadata": {
+    "author": "zohair",
+    "credits": "zohair"
+  },
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "build/icon.ico",
+    "legalTrademarks": "Sonara by zohair",
+    "fileAssociations": [
+      {
+        "ext": "mp3",
+        "name": "MP3 Audio File",
+        "role": "Viewer"
+      },
+      {
+        "ext": "flac",
+        "name": "FLAC Free Lossless Audio",
+        "role": "Viewer"
+      },
+      {
+        "ext": "wav",
+        "name": "Waveform Audio File",
+        "role": "Viewer"
+      },
+      {
+        "ext": "m4a",
+        "name": "MPEG-4 Audio",
+        "role": "Viewer"
+      },
+      {
+        "ext": "ogg",
+        "name": "Ogg Vorbis Audio",
+        "role": "Viewer"
+      },
+      {
+        "ext": "opus",
+        "name": "Opus Audio File",
+        "role": "Viewer"
+      },
+      {
+        "ext": "m3u",
+        "name": "M3U Playlist File",
+        "role": "Viewer"
+      },
+      {
+        "ext": "m3u8",
+        "name": "M3U8 Playlist File",
+        "role": "Viewer"
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Sonara",
+    "uninstallDisplayName": "Sonara Local Music Player (by zohair)"
+  }
+}

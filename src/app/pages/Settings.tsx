@@ -17,7 +17,7 @@ import {
 import { toast } from 'sonner';
 import { db } from '@/db/schema';
 import { useSettingsStore, useLibraryStore, useUIStore } from '../stores';
-import { APP_NAME, APP_VERSION } from '@/config/app';
+import { APP_NAME, APP_VERSION, APP_AUTHOR, APP_CREDITS } from '@/config/app';
 import { createLibraryBackup, downloadBackupFile, restoreLibraryBackup } from '@/lib/backup';
 import { seedDemoData } from '@/recommendation/seedDemo';
 
@@ -748,6 +748,26 @@ export const SettingsPage: FC = () => {
             Web Audio DSP, and tag-based personalized recommendation mathematics. Zero tracking, zero telemetry,
             and complete local privacy.
           </p>
+
+          <div
+            style={{
+              padding: '14px 18px',
+              backgroundColor: 'var(--bg-elevated)',
+              borderRadius: 'var(--radius-card)',
+              marginBottom: '20px',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <div style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 'var(--font-bold)', textTransform: 'uppercase', marginBottom: '4px' }}>
+              Author & Creator
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: 'var(--font-bold)', color: '#FFFFFF' }}>
+              {APP_AUTHOR}
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--text-sub)', marginTop: '2px' }}>
+              {APP_CREDITS}
+            </div>
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: 'var(--text-sub)' }}>
             <div>· Built with React 19, TypeScript, Dexie IndexedDB, and Web Audio API</div>

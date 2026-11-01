@@ -1,11 +1,21 @@
 {
-  "name": "zachy",
+  "name": "sonara",
+  "productName": "Sonara",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Spotify-style 100% offline local music player by zohair",
+  "author": {
+    "name": "zohair",
+    "email": "zohair@local"
+  },
+  "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:electron": "node scripts/build-electron.js",
+    "pack": "npm run build && npm run build:electron && electron-builder --dir",
+    "dist": "npm run build && npm run build:electron && electron-builder --win nsis",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
@@ -21,6 +31,8 @@
     "@types/react-dom": "^19.3.0",
     "@types/wicg-file-system-access": "^2023.10.7",
     "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
     "eslint": "^10.14.0",
     "fake-indexeddb": "^6.2.7",
     "prettier": "^3.9.10",

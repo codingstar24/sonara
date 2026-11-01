@@ -1,6 +1,8 @@
 // App-wide constants and tunable algorithm parameters
 export const APP_NAME = 'Sonara';
 export const APP_VERSION = '1.0.0';
+export const APP_AUTHOR = 'zohair';
+export const APP_CREDITS = 'Designed and developed by zohair';
 
 // --- Layout ---
 export const SIDEBAR_DEFAULT_WIDTH = 320;
