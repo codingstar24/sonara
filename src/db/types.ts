@@ -70,6 +70,7 @@ export interface TrackLite {
   artworkId: string | null;
   sourceId: string;
   relPath: string;
+  fingerprint: string;
   missing: boolean;
   unsupported: boolean;
   addedAt: number;

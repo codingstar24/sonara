@@ -194,6 +194,7 @@ export const useLibraryStore = create<LibraryState>()(
             artworkId: t.overrides?.artworkId !== undefined ? t.overrides.artworkId : t.artworkId,
             sourceId: t.sourceId,
             relPath: t.relPath,
+            fingerprint: t.fingerprint,
             missing: t.missing,
             unsupported: t.unsupported,
             addedAt: t.addedAt,

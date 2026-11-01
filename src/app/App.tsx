@@ -24,6 +24,9 @@ import { StatsPage } from './pages/Stats';
 import { HealthPage } from './pages/Health';
 import { SettingsPage } from './pages/Settings';
 import { MiniPlayerPage } from './pages/Mini';
+import { ReconnectBanner } from '@/features/import/ReconnectBanner';
+import { ImportProgressBar } from '@/features/import/ImportProgressBar';
+import { importPipeline } from '@/features/import/importPipeline';
 
 export const App: FC = () => {
   const location = useLocation();
@@ -76,7 +79,16 @@ export const App: FC = () => {
       e.preventDefault();
       e.stopPropagation();
       setDragOver(false);
-      // File processing will be hooked up in Phase 2
+
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      if (!files.length) return;
+
+      for (const file of files) {
+        const lower = file.name.toLowerCase();
+        if (lower.endsWith('.m3u') || lower.endsWith('.m3u8') || lower.endsWith('.pls')) {
+          void importPipeline.importPlaylist(file);
+        }
+      }
     };
 
     window.addEventListener('dragover', handleDragOver);
@@ -147,6 +159,7 @@ export const App: FC = () => {
               outline: 'none',
             }}
           >
+            <ReconnectBanner />
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/search" element={<SearchPage />} />
@@ -199,6 +212,7 @@ export const App: FC = () => {
           </div>
         )}
 
+        <ImportProgressBar />
         {/* Global Toast notifications */}
         <Toaster theme="dark" position="bottom-center" />
       </div>

@@ -14,13 +14,20 @@ import {
   CaretRight,
   PushPin,
   SortAscending,
+  Folder,
+  MusicNotes,
+  FileText,
 } from '@phosphor-icons/react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useUIStore } from './stores';
 import { SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_COLLAPSE_THRESHOLD } from '@/config/app';
+import { importPipeline } from '@/features/import/importPipeline';
+import { ImportModal } from '@/features/import/ImportModal';
 
 export const Sidebar: FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const setSidebarWidth = useUIStore((s) => s.setSidebarWidth);
@@ -143,9 +150,91 @@ export const Sidebar: FC = () => {
               Your Library
             </button>
             <div style={{ display: 'flex', gap: '4px' }}>
-              <button className="icon-btn" aria-label="Add to library">
-                <Plus size={20} weight="bold" />
-              </button>
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button className="icon-btn" aria-label="Add to library">
+                    <Plus size={20} weight="bold" />
+                  </button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    side="bottom"
+                    align="end"
+                    sideOffset={8}
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      borderRadius: 'var(--radius-card)',
+                      padding: '4px',
+                      minWidth: 180,
+                      boxShadow: 'var(--shadow-dropdown)',
+                      zIndex: 1000,
+                      color: 'var(--text)',
+                      fontSize: 'var(--text-body)',
+                    }}
+                  >
+                    <DropdownMenu.Item
+                      onClick={() => setImportModalOpen(true)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-row-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <Folder size={18} />
+                      Add folder...
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onClick={() => void importPipeline.importFiles()}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-row-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <MusicNotes size={18} />
+                      Add files...
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = '.m3u,.m3u8,.pls';
+                        input.onchange = () => {
+                          const file = input.files?.[0];
+                          if (file) void importPipeline.importPlaylist(file);
+                        };
+                        input.click();
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-row-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <FileText size={18} />
+                      Import playlist...
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
               <button
                 className="icon-btn"
                 onClick={() => {
@@ -324,6 +413,7 @@ export const Sidebar: FC = () => {
             </p>
             <button
               className="btn-primary"
+              onClick={() => setImportModalOpen(true)}
               style={{
                 height: 32,
                 fontSize: 'var(--text-caption)',
@@ -357,6 +447,8 @@ export const Sidebar: FC = () => {
         onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--accent)')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
       />
+
+      <ImportModal open={importModalOpen} onOpenChange={setImportModalOpen} />
     </nav>
   );
 };
