@@ -15,6 +15,7 @@ import {
   RIGHT_PANEL_MIN_WIDTH,
   RIGHT_PANEL_MAX_WIDTH,
 } from '@/config/app';
+import { QueuePanel } from '@/features/queue/QueuePanel';
 
 export const RightPanel: FC = () => {
   const rightPanelWidth = useUIStore((s) => s.rightPanelWidth);
@@ -135,7 +136,7 @@ export const RightPanel: FC = () => {
         }}
       >
         {rightPanelMode === 'now-playing' && <NowPlayingContent />}
-        {rightPanelMode === 'queue' && <QueueContent />}
+        {rightPanelMode === 'queue' && <QueuePanel />}
         {rightPanelMode === 'lyrics' && <LyricsContent />}
       </div>
 
@@ -195,26 +196,6 @@ const NowPlayingContent: FC = () => {
   );
 };
 
-const QueueContent: FC = () => {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '48px 16px',
-        textAlign: 'center',
-      }}
-    >
-      <QueueIcon size={48} style={{ color: 'var(--text-faint)', marginBottom: 16 }} />
-      <p style={{ fontWeight: 'var(--font-title)' }}>Queue is empty</p>
-      <p style={{ color: 'var(--text-sub)', fontSize: 'var(--text-caption)', marginTop: 4 }}>
-        Add songs to your queue to see them here
-      </p>
-    </div>
-  );
-};
 
 const LyricsContent: FC = () => {
   return (

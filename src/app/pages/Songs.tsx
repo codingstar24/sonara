@@ -1,5 +1,6 @@
 import { type FC, useMemo, useState } from 'react';
-import { useLibraryStore } from '../stores';
+import { useLibraryStore, usePlayerStore } from '../stores';
+import { useQueueStore } from '@/features/queue/queueStore';
 import { TrackRow } from '@/components/ui/TrackRow';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { MusicNotes, Play } from '@phosphor-icons/react';
@@ -9,6 +10,8 @@ export const SongsPage: FC = () => {
   const tracksMap = useLibraryStore((s) => s.tracks);
   const tracks = useMemo(() => Array.from(tracksMap.values()), [tracksMap]);
   const [filter, setFilter] = useState('');
+  const currentTrackId = usePlayerStore((s) => s.currentTrackId);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
 
   const filteredTracks = useMemo(() => {
     if (!filter.trim()) return tracks;
@@ -67,7 +70,22 @@ export const SongsPage: FC = () => {
                 width: 200,
               }}
             />
-            <Button variant="primary">
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (filteredTracks.length > 0) {
+                  void useQueueStore
+                    .getState()
+                    .playContext(
+                      'songs',
+                      'all',
+                      'All Songs',
+                      filteredTracks.map((t) => t.id),
+                      filteredTracks[0]?.id
+                    );
+                }
+              }}
+            >
               <Play size={18} weight="fill" /> Play all
             </Button>
           </div>
@@ -108,9 +126,44 @@ export const SongsPage: FC = () => {
             <div />
           </div>
 
-          {filteredTracks.map((t, idx) => (
-            <TrackRow key={t.id} track={t} index={idx} />
-          ))}
+          {filteredTracks.map((t, idx) => {
+            const isCurrent = t.id === currentTrackId;
+            return (
+              <TrackRow
+                key={t.id}
+                track={t}
+                index={idx}
+                isCurrent={isCurrent}
+                isPlaying={isCurrent && isPlaying}
+                onPlay={() => {
+                  if (isCurrent) {
+                    void useQueueStore.getState().togglePlay();
+                  } else {
+                    void useQueueStore
+                      .getState()
+                      .playContext(
+                        'songs',
+                        'all',
+                        'All Songs',
+                        filteredTracks.map((x) => x.id),
+                        t.id
+                      );
+                  }
+                }}
+                onDoubleClick={() => {
+                  void useQueueStore
+                    .getState()
+                    .playContext(
+                      'songs',
+                      'all',
+                      'All Songs',
+                      filteredTracks.map((x) => x.id),
+                      t.id
+                    );
+                }}
+              />
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { type FC, useCallback, useRef, useState } from 'react';
+import { type FC, useCallback, useRef, useState, useEffect } from 'react';
 import {
   Play,
   Pause,
@@ -14,62 +14,70 @@ import {
   SpeakerNone,
   Queue as QueueIcon,
   MicrophoneStage,
-  Moon,
   Equalizer,
   CornersOut,
 } from '@phosphor-icons/react';
-import { usePlayerStore } from './stores';
-import { useUIStore } from './stores';
+import { usePlayerStore, useUIStore, useLibraryStore } from './stores';
+import { useQueueStore } from '@/features/queue/queueStore';
+import { playbackClock, type ClockSnapshot } from '@/engine/clock';
+import { Cover } from '@/components/ui/Cover';
+import { SleepTimerPopover } from '@/features/player/SleepTimerPopover';
+import { formatTime } from '@/lib/formatters';
+import { db } from '@/db/schema';
+import { toast } from 'sonner';
 
 // ============================================================
 // Progress/Seek Bar (rAF-driven, does NOT re-render the app)
 // ============================================================
 
 interface SeekBarProps {
-  currentTime: number;
-  duration: number;
   onSeek: (time: number) => void;
 }
 
-const SeekBar: FC<SeekBarProps> = ({ currentTime, duration, onSeek }) => {
+const SeekBar: FC<SeekBarProps> = ({ onSeek }) => {
   const barRef = useRef<HTMLDivElement>(null);
-  const [hovering, setHovering] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [hoverX, setHoverX] = useState(0);
+  const fillRef = useRef<HTMLDivElement>(null);
+  const thumbRef = useRef<HTMLDivElement>(null);
+  const timeTextRef = useRef<HTMLSpanElement>(null);
+  const durationTextRef = useRef<HTMLSpanElement>(null);
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const hoverTime = duration > 0 && barRef.current
-    ? (hoverX / barRef.current.offsetWidth) * duration
-    : 0;
+  const [hovering, setHovering] = useState(false);
+  const [hoverX, setHoverX] = useState(0);
+  const durationRef = useRef(0);
+
+  useEffect(() => {
+    return playbackClock.subscribe((snap: ClockSnapshot) => {
+      durationRef.current = snap.duration;
+      const pct = snap.progress * 100;
+      if (fillRef.current) {
+        fillRef.current.style.width = `${pct}%`;
+      }
+      if (thumbRef.current) {
+        thumbRef.current.style.left = `${pct}%`;
+      }
+      if (timeTextRef.current) {
+        timeTextRef.current.textContent = formatTime(snap.currentTime);
+      }
+      if (durationTextRef.current) {
+        durationTextRef.current.textContent = formatTime(snap.duration);
+      }
+    });
+  }, []);
 
   const handleSeekFromEvent = useCallback(
     (clientX: number) => {
-      if (!barRef.current || duration <= 0) return;
+      if (!barRef.current || durationRef.current <= 0) return;
       const rect = barRef.current.getBoundingClientRect();
       const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      onSeek(fraction * duration);
+      onSeek(fraction * durationRef.current);
     },
-    [duration, onSeek]
+    [onSeek]
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      setDragging(true);
-      handleSeekFromEvent(e.clientX);
-
-      const handleMove = (ev: MouseEvent) => {
-        handleSeekFromEvent(ev.clientX);
-      };
-      const handleUp = () => {
-        setDragging(false);
-        window.removeEventListener('mousemove', handleMove);
-        window.removeEventListener('mouseup', handleUp);
-      };
-      window.addEventListener('mousemove', handleMove);
-      window.addEventListener('mouseup', handleUp);
-    },
-    [handleSeekFromEvent]
-  );
+  const hoverTime =
+    durationRef.current > 0 && barRef.current
+      ? (hoverX / barRef.current.offsetWidth) * durationRef.current
+      : 0;
 
   return (
     <div
@@ -81,6 +89,7 @@ const SeekBar: FC<SeekBarProps> = ({ currentTime, duration, onSeek }) => {
       }}
     >
       <span
+        ref={timeTextRef}
         style={{
           fontSize: 'var(--text-caption)',
           color: 'var(--text-sub)',
@@ -89,33 +98,31 @@ const SeekBar: FC<SeekBarProps> = ({ currentTime, duration, onSeek }) => {
           fontVariantNumeric: 'tabular-nums',
         }}
       >
-        {formatTime(currentTime)}
+        0:00
       </span>
 
       <div
         ref={barRef}
         role="slider"
         aria-label="Seek"
-        aria-valuemin={0}
-        aria-valuemax={duration}
-        aria-valuenow={Math.round(currentTime)}
-        aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
         tabIndex={0}
-        onMouseDown={handleMouseDown}
-        onMouseEnter={() => setHovering(true)}
-        onMouseLeave={() => {
-          setHovering(false);
-          setHoverX(0);
+        onMouseDown={(e) => {
+          handleSeekFromEvent(e.clientX);
+          const handleMove = (ev: MouseEvent) => handleSeekFromEvent(ev.clientX);
+          const handleUp = () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleUp);
+          };
+          window.addEventListener('mousemove', handleMove);
+          window.addEventListener('mouseup', handleUp);
         }}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
         onMouseMove={(e) => {
           if (barRef.current) {
             const rect = barRef.current.getBoundingClientRect();
             setHoverX(e.clientX - rect.left);
           }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowRight') onSeek(Math.min(duration, currentTime + 5));
-          if (e.key === 'ArrowLeft') onSeek(Math.max(0, currentTime - 5));
         }}
         style={{
           flex: 1,
@@ -126,70 +133,69 @@ const SeekBar: FC<SeekBarProps> = ({ currentTime, duration, onSeek }) => {
           position: 'relative',
         }}
       >
-        {/* Track */}
         <div
           style={{
             width: '100%',
-            height: hovering || dragging ? 4 : 4,
-            background: 'rgba(255,255,255,0.3)',
+            height: 4,
+            background: 'rgba(255, 255, 255, 0.2)',
             borderRadius: 2,
             position: 'relative',
             overflow: 'visible',
           }}
         >
-          {/* Fill */}
           <div
+            ref={fillRef}
             style={{
-              width: `${progress}%`,
+              width: '0%',
               height: '100%',
-              background: hovering || dragging ? 'var(--accent)' : 'var(--text)',
+              background: hovering ? 'var(--accent)' : 'var(--text)',
               borderRadius: 2,
-              transition: dragging ? 'none' : 'background var(--duration-fast) var(--ease)',
+              transition: 'background var(--transition-fast)',
             }}
           />
 
-          {/* Thumb */}
-          {(hovering || dragging) && (
+          <div
+            ref={thumbRef}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '0%',
+              transform: 'translate(-50%, -50%)',
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background: '#FFFFFF',
+              boxShadow: 'var(--shadow-dropdown)',
+              opacity: hovering ? 1 : 0,
+              pointerEvents: 'none',
+              transition: 'opacity var(--transition-fast)',
+            }}
+          />
+
+          {hovering && durationRef.current > 0 && (
             <div
               style={{
                 position: 'absolute',
-                top: '50%',
-                left: `${progress}%`,
-                transform: 'translate(-50%, -50%)',
-                width: 12,
-                height: 12,
-                borderRadius: '50%',
-                background: 'var(--text)',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                top: -24,
+                left: hoverX,
+                transform: 'translateX(-50%)',
+                background: 'var(--bg-elevated)',
+                color: 'var(--text)',
+                padding: '2px 6px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '11px',
+                fontWeight: 600,
+                pointerEvents: 'none',
               }}
-            />
+            >
+              {formatTime(hoverTime)}
+            </div>
           )}
         </div>
-
-        {/* Hover time tooltip */}
-        {hovering && !dragging && hoverX > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 16,
-              left: hoverX,
-              transform: 'translateX(-50%)',
-              background: 'var(--bg-tooltip)',
-              color: 'var(--text)',
-              padding: '2px 8px',
-              borderRadius: 'var(--radius-thumb)',
-              fontSize: 'var(--text-caption)',
-              fontVariantNumeric: 'tabular-nums',
-              pointerEvents: 'none',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {formatTime(hoverTime)}
-          </div>
-        )}
       </div>
 
       <span
+        ref={durationTextRef}
         style={{
           fontSize: 'var(--text-caption)',
           color: 'var(--text-sub)',
@@ -197,7 +203,7 @@ const SeekBar: FC<SeekBarProps> = ({ currentTime, duration, onSeek }) => {
           fontVariantNumeric: 'tabular-nums',
         }}
       >
-        {formatTime(duration)}
+        0:00
       </span>
     </div>
   );
@@ -216,7 +222,6 @@ interface VolumeSliderProps {
 const VolumeSlider: FC<VolumeSliderProps> = ({ volume, muted, onChange }) => {
   const barRef = useRef<HTMLDivElement>(null);
   const [hovering, setHovering] = useState(false);
-
   const displayVolume = muted ? 0 : volume;
 
   const handleSeek = useCallback(
@@ -251,10 +256,6 @@ const VolumeSlider: FC<VolumeSliderProps> = ({ volume, muted, onChange }) => {
       }}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
-      onKeyDown={(e) => {
-        if (e.key === 'ArrowRight') onChange(Math.min(1, volume + 0.05));
-        if (e.key === 'ArrowLeft') onChange(Math.max(0, volume - 0.05));
-      }}
       onWheel={(e) => {
         e.preventDefault();
         const delta = e.deltaY > 0 ? -0.05 : 0.05;
@@ -273,7 +274,7 @@ const VolumeSlider: FC<VolumeSliderProps> = ({ volume, muted, onChange }) => {
         style={{
           width: '100%',
           height: 4,
-          background: 'rgba(255,255,255,0.3)',
+          background: 'rgba(255, 255, 255, 0.2)',
           borderRadius: 2,
           position: 'relative',
         }}
@@ -296,8 +297,8 @@ const VolumeSlider: FC<VolumeSliderProps> = ({ volume, muted, onChange }) => {
               width: 12,
               height: 12,
               borderRadius: '50%',
-              background: 'var(--text)',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+              background: '#FFFFFF',
+              boxShadow: 'var(--shadow-dropdown)',
             }}
           />
         )}
@@ -307,98 +308,144 @@ const VolumeSlider: FC<VolumeSliderProps> = ({ volume, muted, onChange }) => {
 };
 
 // ============================================================
-// Player Bar
+// Main PlayerBar Component
 // ============================================================
 
 export const PlayerBar: FC = () => {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const currentTrackId = usePlayerStore((s) => s.currentTrackId);
   const volume = usePlayerStore((s) => s.volume);
   const muted = usePlayerStore((s) => s.muted);
   const shuffle = usePlayerStore((s) => s.shuffle);
   const repeat = usePlayerStore((s) => s.repeat);
-  const setPlaying = usePlayerStore((s) => s.setPlaying);
   const setVolume = usePlayerStore((s) => s.setVolume);
   const toggleMute = usePlayerStore((s) => s.toggleMute);
-  const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
-  const cycleRepeat = usePlayerStore((s) => s.cycleRepeat);
+
+  const togglePlay = useQueueStore((s) => s.togglePlay);
+  const next = useQueueStore((s) => s.next);
+  const previous = useQueueStore((s) => s.previous);
+  const toggleShuffle = useQueueStore((s) => s.toggleShuffle);
+  const cycleRepeat = useQueueStore((s) => s.cycleRepeat);
+  const seek = useQueueStore((s) => s.seek);
 
   const rightPanelOpen = useUIStore((s) => s.rightPanelOpen);
   const rightPanelMode = useUIStore((s) => s.rightPanelMode);
   const toggleRightPanel = useUIStore((s) => s.toggleRightPanel);
 
-  // Mock data for the static shell
-  const [currentTime] = useState(0);
-  const duration = 0;
-  const hasTrack = false;
+  const track = useLibraryStore((s) =>
+    currentTrackId ? s.tracks.get(currentTrackId) : null
+  );
+
+  const [isLiked, setIsLiked] = useState(false);
+
+  useEffect(() => {
+    if (!currentTrackId) {
+      setIsLiked(false);
+      return;
+    }
+    db.likes.get(currentTrackId).then((like) => setIsLiked(!!like));
+  }, [currentTrackId]);
+
+  const handleLikeToggle = async () => {
+    if (!currentTrackId) return;
+    if (isLiked) {
+      await db.likes.delete(currentTrackId);
+      setIsLiked(false);
+      toast('Removed from Liked Songs');
+    } else {
+      await db.likes.put({ trackId: currentTrackId, likedAt: Date.now() });
+      setIsLiked(true);
+      toast.success('Added to Liked Songs');
+    }
+  };
 
   const VolumeIcon =
     muted || volume === 0
       ? SpeakerX
-      : volume < 0.33
+      : volume < 0.3
         ? SpeakerNone
-        : volume < 0.66
+        : volume < 0.7
           ? SpeakerLow
           : SpeakerHigh;
 
   return (
     <footer
-      aria-label="Player controls"
+      aria-label="Now Playing bar"
       style={{
-        height: 'var(--player-bar-height)',
         display: 'grid',
-        gridTemplateColumns: '30% 40% 30%',
+        gridTemplateColumns: 'minmax(200px, 30%) 1fr minmax(200px, 30%)',
         alignItems: 'center',
         padding: '0 16px',
         background: 'var(--bg-base)',
+        height: '100%',
+        userSelect: 'none',
       }}
     >
       {/* Left: Track info */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          minWidth: 0,
-        }}
-      >
-        {/* Cover placeholder */}
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 'var(--radius-thumb)',
-            background: hasTrack ? 'var(--bg-card)' : 'var(--bg-card)',
-            flexShrink: 0,
-            cursor: 'pointer',
-          }}
-        />
-        {hasTrack ? (
-          <div style={{ minWidth: 0, overflow: 'hidden' }}>
-            <div
-              className="truncate"
-              style={{
-                fontSize: 'var(--text-body)',
-                fontWeight: 'var(--font-medium)',
-                cursor: 'pointer',
-              }}
-            >
-              Track Title
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+        {track ? (
+          <>
+            <Cover
+              artworkId={track.artworkId}
+              title={track.title}
+              size={56}
+              style={{ cursor: 'pointer', flexShrink: 0 }}
+              onClick={() => toggleRightPanel('now-playing')}
+            />
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+              <div
+                style={{
+                  fontSize: 'var(--text-body)',
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  cursor: 'pointer',
+                }}
+                title={track.title}
+                onClick={() => toggleRightPanel('now-playing')}
+              >
+                {track.title}
+              </div>
+              <div
+                style={{
+                  fontSize: 'var(--text-caption)',
+                  color: 'var(--text-sub)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+                title={track.artist}
+              >
+                {track.artist}
+              </div>
             </div>
-            <div
-              className="truncate"
+            <button
+              onClick={handleLikeToggle}
+              aria-label={isLiked ? 'Unlike song' : 'Like song'}
               style={{
-                fontSize: 'var(--text-caption)',
-                color: 'var(--text-sub)',
+                background: 'transparent',
+                border: 'none',
+                color: isLiked ? 'var(--accent)' : 'var(--text-sub)',
                 cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'transform var(--transition-fast)',
               }}
             >
-              Artist Name
+              <Heart size={18} weight={isLiked ? 'fill' : 'regular'} />
+            </button>
+          </>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Cover size={56} />
+            <div style={{ fontSize: 'var(--text-caption)', color: 'var(--text-sub)' }}>
+              No song selected
             </div>
           </div>
-        ) : null}
-        <button className="icon-btn" aria-label="Like" style={{ opacity: hasTrack ? 1 : 0.3 }}>
-          <Heart size={18} />
-        </button>
+        )}
       </div>
 
       {/* Center: Controls + Seek */}
@@ -408,184 +455,201 @@ export const PlayerBar: FC = () => {
           flexDirection: 'column',
           alignItems: 'center',
           gap: '4px',
-          maxWidth: 722,
+          maxWidth: 720,
           margin: '0 auto',
           width: '100%',
         }}
       >
-        {/* Control buttons */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-          }}
-        >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* Shuffle */}
           <button
             className={`icon-btn ${shuffle ? 'active' : ''}`}
             onClick={toggleShuffle}
             aria-label={`Shuffle ${shuffle ? 'on' : 'off'}`}
-            style={{ position: 'relative' }}
+            style={{
+              color: shuffle ? 'var(--accent)' : 'var(--text-sub)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              position: 'relative',
+              padding: 4,
+            }}
           >
-            <Shuffle size={18} />
-            {shuffle && (
-              <span
-                style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 4,
-                  height: 4,
-                  borderRadius: '50%',
-                  background: 'var(--accent)',
-                }}
-              />
-            )}
+            <Shuffle size={18} weight={shuffle ? 'bold' : 'regular'} />
           </button>
 
+          {/* Previous */}
           <button
-            className="icon-btn"
+            onClick={() => void previous()}
             aria-label="Previous"
-            style={{ opacity: hasTrack ? 1 : 0.5 }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-sub)',
+              cursor: 'pointer',
+              padding: 4,
+            }}
           >
             <SkipBack size={20} weight="fill" />
           </button>
 
+          {/* Play / Pause button */}
           <button
-            onClick={() => setPlaying(!isPlaying)}
+            onClick={() => void togglePlay()}
             aria-label={isPlaying ? 'Pause' : 'Play'}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'var(--text)',
+              width: 36,
+              height: 36,
+              borderRadius: 'var(--radius-pill)',
+              background: '#FFFFFF',
               border: 'none',
-              color: 'var(--bg-base)',
+              color: '#000000',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              transition: 'transform var(--duration-fast) var(--ease)',
+              boxShadow: 'var(--shadow-card)',
+              transition: 'transform var(--transition-bounce)',
             }}
             onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.06)')}
             onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
           >
             {isPlaying ? (
-              <Pause size={16} weight="fill" />
+              <Pause size={18} weight="fill" />
             ) : (
-              <Play size={16} weight="fill" style={{ marginLeft: 1 }} />
+              <Play size={18} weight="fill" style={{ marginLeft: 2 }} />
             )}
           </button>
 
+          {/* Next */}
           <button
-            className="icon-btn"
+            onClick={() => void next(false)}
             aria-label="Next"
-            style={{ opacity: hasTrack ? 1 : 0.5 }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-sub)',
+              cursor: 'pointer',
+              padding: 4,
+            }}
           >
             <SkipForward size={20} weight="fill" />
           </button>
 
+          {/* Repeat */}
           <button
-            className={`icon-btn ${repeat !== 'off' ? 'active' : ''}`}
             onClick={cycleRepeat}
             aria-label={`Repeat ${repeat}`}
-            style={{ position: 'relative' }}
+            style={{
+              color: repeat !== 'off' ? 'var(--accent)' : 'var(--text-sub)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              position: 'relative',
+              padding: 4,
+            }}
           >
-            {repeat === 'one' ? <RepeatOnce size={18} /> : <Repeat size={18} />}
-            {repeat !== 'off' && (
-              <span
-                style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 4,
-                  height: 4,
-                  borderRadius: '50%',
-                  background: 'var(--accent)',
-                }}
-              />
+            {repeat === 'one' ? (
+              <RepeatOnce size={18} weight="bold" />
+            ) : (
+              <Repeat size={18} weight={repeat === 'all' ? 'bold' : 'regular'} />
             )}
           </button>
         </div>
 
-        {/* Seek bar */}
-        <SeekBar
-          currentTime={currentTime}
-          duration={duration}
-          onSeek={() => {}}
-        />
+        {/* Seek Bar */}
+        <SeekBar onSeek={seek} />
       </div>
 
       {/* Right: Volume + extras */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: '8px',
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+        {/* Lyrics */}
         <button
-          className={`icon-btn ${rightPanelOpen && rightPanelMode === 'lyrics' ? 'active' : ''}`}
           onClick={() => toggleRightPanel('lyrics')}
           aria-label="Lyrics"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: rightPanelOpen && rightPanelMode === 'lyrics' ? 'var(--accent)' : 'var(--text-sub)',
+            cursor: 'pointer',
+            padding: 4,
+          }}
         >
           <MicrophoneStage size={18} />
         </button>
 
+        {/* Queue */}
         <button
-          className={`icon-btn ${rightPanelOpen && rightPanelMode === 'queue' ? 'active' : ''}`}
           onClick={() => toggleRightPanel('queue')}
           aria-label="Queue"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: rightPanelOpen && rightPanelMode === 'queue' ? 'var(--accent)' : 'var(--text-sub)',
+            cursor: 'pointer',
+            padding: 4,
+          }}
         >
           <QueueIcon size={18} />
         </button>
 
-        <button
-          className="icon-btn"
-          aria-label="Sleep timer"
-        >
-          <Moon size={18} />
-        </button>
+        {/* Sleep Timer Popover */}
+        <SleepTimerPopover />
 
+        {/* Mute toggle */}
         <button
-          className="icon-btn"
           onClick={toggleMute}
           aria-label={muted ? 'Unmute' : 'Mute'}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-sub)',
+            cursor: 'pointer',
+            padding: 4,
+          }}
         >
           <VolumeIcon size={18} />
         </button>
 
-        <VolumeSlider
-          volume={volume}
-          muted={muted}
-          onChange={(v) => {
-            setVolume(v);
-            if (muted && v > 0) toggleMute();
-          }}
-        />
+        {/* Volume Slider */}
+        <VolumeSlider volume={volume} muted={muted} onChange={setVolume} />
 
-        <button className="icon-btn" aria-label="Equalizer">
+        {/* Equalizer */}
+        <button
+          onClick={() => toast.info('Equalizer available in Phase 6')}
+          aria-label="Equalizer"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-sub)',
+            cursor: 'pointer',
+            padding: 4,
+          }}
+        >
           <Equalizer size={18} />
         </button>
 
-        <button className="icon-btn" aria-label="Full screen">
+        {/* Fullscreen */}
+        <button
+          onClick={() => {
+            if (!document.fullscreenElement) {
+              void document.documentElement.requestFullscreen();
+            } else {
+              void document.exitFullscreen();
+            }
+          }}
+          aria-label="Full screen"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-sub)',
+            cursor: 'pointer',
+            padding: 4,
+          }}
+        >
           <CornersOut size={18} />
         </button>
       </div>
     </footer>
   );
 };
-
-// ============================================================
-// Helpers
-// ============================================================
-
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || seconds < 0) return '0:00';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}

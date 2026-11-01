@@ -27,8 +27,11 @@ import { MiniPlayerPage } from './pages/Mini';
 import { ReconnectBanner } from '@/features/import/ReconnectBanner';
 import { ImportProgressBar } from '@/features/import/ImportProgressBar';
 import { importPipeline } from '@/features/import/importPipeline';
+import { useKeyboardShortcuts } from '@/features/player/useKeyboardShortcuts';
+import { useQueueStore } from '@/features/queue/queueStore';
 
 export const App: FC = () => {
+  useKeyboardShortcuts();
   const location = useLocation();
   const theme = useSettingsStore((s) => s.theme);
   const accent = useSettingsStore((s) => s.accent);
@@ -37,10 +40,11 @@ export const App: FC = () => {
   const setDragOver = useUIStore((s) => s.setDragOver);
   const setWindowWidth = useUIStore((s) => s.setWindowWidth);
 
-  // Initialize settings, library hydration, and resize listeners
+  // Initialize settings, library hydration, persisted queue, and resize listeners
   useEffect(() => {
     void useSettingsStore.getState().load();
     void useLibraryStore.getState().hydrate();
+    void useQueueStore.getState().loadPersisted();
 
     const handleResize = () => {
       setWindowWidth(window.innerWidth);

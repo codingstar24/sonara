@@ -1,6 +1,7 @@
 import { type FC, useMemo, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useLibraryStore } from '../stores';
+import { useLibraryStore, usePlayerStore } from '../stores';
+import { useQueueStore } from '@/features/queue/queueStore';
 import { searchEngine } from '@/features/search/searchIndex';
 import { TrackRow } from '@/components/ui/TrackRow';
 import { MediaCard } from '@/components/ui/MediaCard';
@@ -17,6 +18,8 @@ export const SearchPage: FC = () => {
   const tracksMap = useLibraryStore((s) => s.tracks);
   const albumsMap = useLibraryStore((s) => s.albums);
   const artistsMap = useLibraryStore((s) => s.artists);
+  const currentTrackId = usePlayerStore((s) => s.currentTrackId);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
 
   // Sync search engine index if needed
   useMemo(() => {
@@ -218,6 +221,16 @@ export const SearchPage: FC = () => {
 
                 <button
                   aria-label="Play top result"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if ('title' in topResult) {
+                      void useQueueStore.getState().playNow(topResult.id, 'search', 'search', 'Search');
+                    } else if ('name' in topResult) {
+                      void useQueueStore.getState().playContext('artist', topResult.name, topResult.name, topResult.trackIds);
+                    } else {
+                      void useQueueStore.getState().playContext('album', topResult.key, topResult.album, topResult.trackIds);
+                    }
+                  }}
                   style={{
                     position: 'absolute',
                     bottom: '24px',
@@ -248,9 +261,45 @@ export const SearchPage: FC = () => {
                 Songs
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {matchingTracks.slice(0, 4).map((t, idx) => (
-                  <TrackRow key={t.id} track={t} index={idx} compact={true} />
-                ))}
+                {matchingTracks.slice(0, 4).map((t, idx) => {
+                  const isCurrent = t.id === currentTrackId;
+                  return (
+                    <TrackRow
+                      key={t.id}
+                      track={t}
+                      index={idx}
+                      compact={true}
+                      isCurrent={isCurrent}
+                      isPlaying={isCurrent && isPlaying}
+                      onPlay={() => {
+                        if (isCurrent) {
+                          void useQueueStore.getState().togglePlay();
+                        } else {
+                          void useQueueStore
+                            .getState()
+                            .playContext(
+                              'search',
+                              'search',
+                              `Search "${query}"`,
+                              matchingTracks.map((x) => x.id),
+                              t.id
+                            );
+                        }
+                      }}
+                      onDoubleClick={() => {
+                        void useQueueStore
+                          .getState()
+                          .playContext(
+                            'search',
+                            'search',
+                            `Search "${query}"`,
+                            matchingTracks.map((x) => x.id),
+                            t.id
+                          );
+                      }}
+                    />
+                  );
+                })}
               </div>
             </div>
           )}
@@ -313,9 +362,44 @@ export const SearchPage: FC = () => {
       {/* All matching tracks if Songs filter active */}
       {filterType === 'songs' && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {matchingTracks.map((t, idx) => (
-            <TrackRow key={t.id} track={t} index={idx} />
-          ))}
+          {matchingTracks.map((t, idx) => {
+            const isCurrent = t.id === currentTrackId;
+            return (
+              <TrackRow
+                key={t.id}
+                track={t}
+                index={idx}
+                isCurrent={isCurrent}
+                isPlaying={isCurrent && isPlaying}
+                onPlay={() => {
+                  if (isCurrent) {
+                    void useQueueStore.getState().togglePlay();
+                  } else {
+                    void useQueueStore
+                      .getState()
+                      .playContext(
+                        'search',
+                        'search',
+                        `Search "${query}"`,
+                        matchingTracks.map((x) => x.id),
+                        t.id
+                      );
+                  }
+                }}
+                onDoubleClick={() => {
+                  void useQueueStore
+                    .getState()
+                    .playContext(
+                      'search',
+                      'search',
+                      `Search "${query}"`,
+                      matchingTracks.map((x) => x.id),
+                      t.id
+                    );
+                }}
+              />
+            );
+          })}
         </div>
       )}
     </div>

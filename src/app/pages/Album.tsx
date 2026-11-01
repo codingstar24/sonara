@@ -1,6 +1,7 @@
 import { type FC, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { useLibraryStore } from '../stores';
+import { useLibraryStore, usePlayerStore } from '../stores';
+import { useQueueStore } from '@/features/queue/queueStore';
 import { Cover } from '@/components/ui/Cover';
 import { TrackRow } from '@/components/ui/TrackRow';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +12,8 @@ export const AlbumPage: FC = () => {
   const decodedKey = id ? decodeURIComponent(id) : '';
   const album = useLibraryStore((s) => s.albums.get(decodedKey));
   const tracksMap = useLibraryStore((s) => s.tracks);
+  const currentTrackId = usePlayerStore((s) => s.currentTrackId);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
 
   const albumTracks = useMemo(() => {
     if (!album) return [];
@@ -71,7 +74,23 @@ export const AlbumPage: FC = () => {
 
       {/* Actions */}
       <div style={{ padding: '0 32px 24px' }}>
-        <Button variant="primary" size="lg">
+        <Button
+          variant="primary"
+          size="lg"
+          onClick={() => {
+            if (albumTracks.length > 0) {
+              void useQueueStore
+                .getState()
+                .playContext(
+                  'album',
+                  decodedKey,
+                  album.album,
+                  albumTracks.map((t) => t.id),
+                  albumTracks[0]?.id
+                );
+            }
+          }}
+        >
           <Play size={20} weight="fill" /> Play
         </Button>
       </div>
@@ -102,9 +121,44 @@ export const AlbumPage: FC = () => {
           <div />
         </div>
 
-        {albumTracks.map((t, idx) => (
-          <TrackRow key={t.id} track={t} index={idx} />
-        ))}
+        {albumTracks.map((t, idx) => {
+          const isCurrent = t.id === currentTrackId;
+          return (
+            <TrackRow
+              key={t.id}
+              track={t}
+              index={idx}
+              isCurrent={isCurrent}
+              isPlaying={isCurrent && isPlaying}
+              onPlay={() => {
+                if (isCurrent) {
+                  void useQueueStore.getState().togglePlay();
+                } else {
+                  void useQueueStore
+                    .getState()
+                    .playContext(
+                      'album',
+                      decodedKey,
+                      album.album,
+                      albumTracks.map((x) => x.id),
+                      t.id
+                    );
+                }
+              }}
+              onDoubleClick={() => {
+                void useQueueStore
+                  .getState()
+                  .playContext(
+                    'album',
+                    decodedKey,
+                    album.album,
+                    albumTracks.map((x) => x.id),
+                    t.id
+                  );
+              }}
+            />
+          );
+        })}
       </div>
     </div>
   );

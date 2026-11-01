@@ -9,6 +9,7 @@ export interface CoverProps {
   isArtist?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  onClick?: () => void;
 }
 
 // Generate deterministic gradient from string
@@ -29,6 +30,7 @@ export const Cover: FC<CoverProps> = ({
   isArtist = false,
   className = '',
   style,
+  onClick,
 }) => {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -71,6 +73,7 @@ export const Cover: FC<CoverProps> = ({
         alt={title}
         onError={() => setError(true)}
         className={className}
+        onClick={onClick}
         style={{
           width: size,
           height: size,
@@ -88,6 +91,7 @@ export const Cover: FC<CoverProps> = ({
   return (
     <div
       className={className}
+      onClick={onClick}
       style={{
         width: size,
         height: size,
