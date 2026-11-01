@@ -301,23 +301,36 @@ function setupIpc() {
   ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
 
   ipcMain.handle('dialog-open-directories', async () => {
-    if (!mainWindow) return null;
-    const res = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openDirectory', 'multiSelections'],
-    });
+    const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+    const res = win
+      ? await dialog.showOpenDialog(win, {
+          properties: ['openDirectory', 'multiSelections'],
+        })
+      : await dialog.showOpenDialog({
+          properties: ['openDirectory', 'multiSelections'],
+        });
     return res.canceled ? null : res.filePaths;
   });
 
   ipcMain.handle('dialog-open-files', async () => {
-    if (!mainWindow) return null;
-    const res = await dialog.showOpenDialog(mainWindow, {
-      properties: ['openFile', 'multiSelections'],
-      filters: [
-        { name: 'Audio Files', extensions: ['mp3', 'flac', 'wav', 'ogg', 'opus', 'm4a', 'aac'] },
-        { name: 'Playlists', extensions: ['m3u', 'm3u8', 'pls'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-    });
+    const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+    const res = win
+      ? await dialog.showOpenDialog(win, {
+          properties: ['openFile', 'multiSelections'],
+          filters: [
+            { name: 'Audio Files', extensions: ['mp3', 'flac', 'wav', 'ogg', 'opus', 'm4a', 'aac'] },
+            { name: 'Playlists', extensions: ['m3u', 'm3u8', 'pls'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        })
+      : await dialog.showOpenDialog({
+          properties: ['openFile', 'multiSelections'],
+          filters: [
+            { name: 'Audio Files', extensions: ['mp3', 'flac', 'wav', 'ogg', 'opus', 'm4a', 'aac'] },
+            { name: 'Playlists', extensions: ['m3u', 'm3u8', 'pls'] },
+            { name: 'All Files', extensions: ['*'] },
+          ],
+        });
     return res.canceled ? null : res.filePaths;
   });
 
@@ -368,8 +381,8 @@ function setupIpc() {
           let isDirectory = entry.isDirectory();
           let isFile = entry.isFile();
 
-          // In Windows, user folders (e.g. C:\Users\<user>\Music) or junction points have isSymbolicLink() === true
-          if (entry.isSymbolicLink()) {
+          // In Windows, user folders or junctions might not report isDirectory() / isFile() directly
+          if ((!isDirectory && !isFile) || entry.isSymbolicLink()) {
             try {
               const stat = await fs.promises.stat(entryPath);
               isDirectory = stat.isDirectory();
@@ -403,7 +416,14 @@ function setupIpc() {
     }
 
     const resolvedRoot = sanitizePath(rootPath);
-    await scanDir(resolvedRoot);
+    try {
+      const rootStat = await fs.promises.stat(resolvedRoot);
+      if (rootStat.isDirectory()) {
+        await scanDir(resolvedRoot);
+      }
+    } catch (rootErr) {
+      console.warn('Cannot access root directory:', resolvedRoot, rootErr);
+    }
     return results;
   });
 
@@ -417,8 +437,22 @@ function setupIpc() {
     }
   });
 
-  ipcMain.handle('fs-read-file', async (_, filePath: string) => {
-    return fs.promises.readFile(sanitizePath(filePath));
+  ipcMain.handle('fs-read-file', async (_, filePath: string, maxBytes?: number) => {
+    const resolved = sanitizePath(filePath);
+    if (typeof maxBytes === 'number' && maxBytes > 0) {
+      let handle: fs.promises.FileHandle | null = null;
+      try {
+        handle = await fs.promises.open(resolved, 'r');
+        const stat = await handle.stat();
+        const readLength = Math.min(stat.size, maxBytes);
+        const buf = Buffer.alloc(readLength);
+        await handle.read(buf, 0, readLength, 0);
+        return buf;
+      } finally {
+        if (handle) await handle.close();
+      }
+    }
+    return fs.promises.readFile(resolved);
   });
 
   ipcMain.handle('fs-read-text', async (_, filePath: string) => {

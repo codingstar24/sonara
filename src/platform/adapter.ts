@@ -11,6 +11,9 @@ export interface PlatformAdapter {
   /** Open a directory picker */
   pickFolder(): Promise<SourceRef | null>;
 
+  /** Open a directory picker allowing multiple folder selections */
+  pickFolders?(): Promise<SourceRef[]>;
+
   /** Recursively scan a source for audio files */
   scan(source: Source, signal: AbortSignal): AsyncGenerator<ScannedFile>;
 

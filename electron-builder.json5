@@ -8,7 +8,7 @@
     "credits": "zohair"
   },
   "directories": {
-    "output": "release",
+    "output": "dist-release",
     "buildResources": "build"
   },
   "files": [

@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 import { getPlatform } from '@/platform';
 import { db } from '@/db/schema';
-import type { Source, Track, Artwork, TrackLite, Playlist, PlaylistTrack } from '@/db/types';
+import type { Source, Track, Artwork, TrackLite, Playlist, PlaylistTrack, SourceRef } from '@/db/types';
 import { importWorkerPool } from '@/workers/workerPool';
 import { useImportStore } from './useImportStore';
 import { useLibraryStore, useSettingsStore } from '@/app/stores';
@@ -20,39 +20,47 @@ export class ImportPipeline {
 
   async importFolder(options: ImportOptions = {}): Promise<void> {
     const platform = getPlatform();
-    const sourceRef = await platform.pickFolder();
-    if (!sourceRef) return;
-
-    // Check if source already exists with this path
-    let source: Source | undefined;
-    if (sourceRef.path) {
-      const cleanPath = sourceRef.path.replace(/\\/g, '/');
-      source = await db.sources.where('path').equals(cleanPath).first();
-      if (!source) {
-        const alt = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) : `${cleanPath}/`;
-        source = await db.sources.where('path').equals(alt).first();
-      }
-    }
-
-    if (!source) {
-      const sourceId = `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      source = {
-        id: sourceId,
-        kind: sourceRef.kind,
-        name: sourceRef.name,
-        handle: sourceRef.handle,
-        path: sourceRef.path ? sourceRef.path.replace(/\\/g, '/') : undefined,
-        addedAt: Date.now(),
-        lastScanAt: Date.now(),
-        autoScan: true,
-      };
-      await db.sources.put(source);
+    let sourceRefs: SourceRef[] = [];
+    if ('pickFolders' in platform && typeof (platform as any).pickFolders === 'function') {
+      sourceRefs = await (platform as any).pickFolders();
     } else {
-      source.lastScanAt = Date.now();
-      await db.sources.put(source);
+      const single = await platform.pickFolder();
+      if (single) sourceRefs = [single];
     }
+    if (!sourceRefs.length) return;
 
-    await this.scanSource(source, { ...options, createPlaylistPerFolder: true });
+    for (const sourceRef of sourceRefs) {
+      // Check if source already exists with this path
+      let source: Source | undefined;
+      if (sourceRef.path) {
+        const cleanPath = sourceRef.path.replace(/\\/g, '/');
+        source = await db.sources.where('path').equals(cleanPath).first();
+        if (!source) {
+          const alt = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) : `${cleanPath}/`;
+          source = await db.sources.where('path').equals(alt).first();
+        }
+      }
+
+      if (!source) {
+        const sourceId = `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        source = {
+          id: sourceId,
+          kind: sourceRef.kind,
+          name: sourceRef.name,
+          handle: sourceRef.handle,
+          path: sourceRef.path ? sourceRef.path.replace(/\\/g, '/') : undefined,
+          addedAt: Date.now(),
+          lastScanAt: Date.now(),
+          autoScan: true,
+        };
+        await db.sources.put(source);
+      } else {
+        source.lastScanAt = Date.now();
+        await db.sources.put(source);
+      }
+
+      await this.scanSource(source, { ...options, createPlaylistPerFolder: true });
+    }
   }
 
   async importFolderPath(rawPath: string, options: ImportOptions = {}): Promise<boolean> {
@@ -267,8 +275,8 @@ export class ImportPipeline {
     const allowDuplicates = useSettingsStore.getState().allowDuplicates;
     const existingTracks = Array.from(useLibraryStore.getState().tracks.values());
     const existingFingerprints = new Set(existingTracks.map((t) => t.fingerprint));
-    const existingTracksByFingerprint = new Map(existingTracks.map((t) => [t.fingerprint, t.id]));
-    const existingTracksByPath = new Map(existingTracks.map((t) => [t.relPath, t.id]));
+    const existingTracksByFingerprint = new Map(existingTracks.map((t) => [t.fingerprint, t]));
+    const existingTracksByPath = new Map(existingTracks.map((t) => [t.relPath, t]));
 
     let addedCount = 0;
     let dupCount = 0;
@@ -319,13 +327,28 @@ export class ImportPipeline {
             const segs = scanned.relPath.split(/[/\\]/);
             const folderName = segs.length > 1 ? segs[segs.length - 2]! : source.name;
 
-            if (!allowDuplicates && existingFingerprints.has(result.track.fingerprint)) {
+            const existingTrack =
+              existingTracksByFingerprint.get(result.track.fingerprint) ||
+              existingTracksByPath.get(scanned.relPath);
+
+            if (!allowDuplicates && existingTrack) {
               dupCount++;
-              // Even if track is already in library, add to folder playlist!
-              const existingId =
-                existingTracksByFingerprint.get(result.track.fingerprint) ||
-                existingTracksByPath.get(scanned.relPath) ||
-                result.track.id;
+              const existingId = existingTrack.id;
+
+              // If the track was previously imported as a loose file (or under another source),
+              // re-link it to this folder source so it is organized inside this folder!
+              if (existingTrack.sourceId !== source.id || existingTrack.relPath !== scanned.relPath) {
+                await db.tracks.update(existingId, {
+                  sourceId: source.id,
+                  relPath: scanned.relPath,
+                });
+                useLibraryStore.getState().updateTrack(existingId, {
+                  sourceId: source.id,
+                  relPath: scanned.relPath,
+                });
+              }
+
+              // Always add to folder playlist!
               const existingList = folderMap.get(folderName) ?? [];
               if (!existingList.includes(existingId)) {
                 existingList.push(existingId);
@@ -409,6 +432,12 @@ export class ImportPipeline {
 
       // Create or update playlists from folders (always on by default)
       if (options.createPlaylistPerFolder !== false && folderMap.size > 0) {
+        // If there are multiple subfolders but no top-level playlist, also create a root folder playlist
+        const allFolderTrackIds = Array.from(new Set(Array.from(folderMap.values()).flat()));
+        if (!folderMap.has(source.name) && allFolderTrackIds.length > 0) {
+          folderMap.set(source.name, allFolderTrackIds);
+        }
+
         const allPlaylists = await db.playlists.toArray();
         for (const [folderName, trackIds] of folderMap.entries()) {
           if (trackIds.length === 0) continue;
@@ -458,14 +487,17 @@ export class ImportPipeline {
 
       await usePlaylistStore.getState().hydrate();
 
-      if (addedCount === 0 && dupCount > 0) {
-        toast.info(`All ${dupCount} ${dupCount === 1 ? 'song' : 'songs'} in this folder are already in your library.`);
-      } else if (addedCount === 0 && dupCount === 0) {
-        toast.info('No supported audio files found in selected folder.');
-      } else {
+      const totalFolderTracks = Array.from(folderMap.values()).reduce((sum, list) => sum + list.length, 0);
+      if (addedCount > 0) {
         toast.success(
-          `Added ${addedCount} ${addedCount === 1 ? 'song' : 'songs'}${dupCount > 0 ? ` • ${dupCount} already present` : ''}${unsupportedCount > 0 ? ` • ${unsupportedCount} unsupported` : ''}`
+          `Added ${addedCount} ${addedCount === 1 ? 'song' : 'songs'} from "${source.name}" • Synced to playlist`
         );
+      } else if (totalFolderTracks > 0) {
+        toast.success(
+          `Folder "${source.name}" connected • ${totalFolderTracks} ${totalFolderTracks === 1 ? 'song' : 'songs'} synced to playlist`
+        );
+      } else {
+        toast.info(`No supported audio files found in selected folder.`);
       }
     } catch (err: any) {
       if (!signal.aborted) {
@@ -557,11 +589,27 @@ export class ImportPipeline {
   }
 
   async importDroppedFiles(files: File[]): Promise<void> {
+    const bridge = (window as any).sonara || (window as any).electronAPI;
+    const droppedFolderPaths = new Set<string>();
     const playlists: File[] = [];
     const directAudioFiles: File[] = [];
-    const audioExts = new Set(['.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a', '.aac', '.webm', '.wma']);
+    const audioExts = new Set([
+      '.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a', '.aac', '.webm', '.wma',
+      '.alac', '.m4b', '.mp4', '.wv', '.oga', '.aiff', '.ape',
+    ]);
 
     for (const f of files) {
+      const osPath = (f as any).path;
+      if (osPath && bridge?.fs?.dirExists) {
+        try {
+          const isDir = await bridge.fs.dirExists(osPath);
+          if (isDir) {
+            droppedFolderPaths.add(osPath);
+            continue;
+          }
+        } catch {}
+      }
+
       const lower = f.name.toLowerCase();
       if (lower.endsWith('.m3u') || lower.endsWith('.m3u8') || lower.endsWith('.pls')) {
         playlists.push(f);
@@ -572,6 +620,11 @@ export class ImportPipeline {
           directAudioFiles.push(f);
         }
       }
+    }
+
+    // Import any dropped folders recursively
+    for (const folderPath of droppedFolderPaths) {
+      await this.importFolderPath(folderPath, { createPlaylistPerFolder: true });
     }
 
     for (const pl of playlists) {

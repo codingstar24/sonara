@@ -25,7 +25,7 @@ interface ElectronBridge {
       lastModified: number;
     }>>;
     dirExists: (dirPath: string) => Promise<boolean>;
-    readFile: (filePath: string) => Promise<Uint8Array>;
+    readFile: (filePath: string, maxBytes?: number) => Promise<Uint8Array>;
     readText: (filePath: string) => Promise<string | null>;
     showInFolder: (filePath: string) => Promise<void>;
   };
@@ -71,26 +71,33 @@ export class ElectronAdapter implements PlatformAdapter {
 
   /** Pick a folder via Electron's dialog.showOpenDialog */
   async pickFolder(): Promise<SourceRef | null> {
+    const folders = await this.pickFolders();
+    return folders.length > 0 ? folders[0]! : null;
+  }
+
+  /** Pick one or more folders via Electron's dialog.showOpenDialog */
+  async pickFolders(): Promise<SourceRef[]> {
     const bridge = getBridge();
-    if (!bridge) return null;
+    if (!bridge) return [];
 
     const folderPaths = await bridge.dialog.selectFolders();
-    if (!folderPaths || folderPaths.length === 0) return null;
+    if (!folderPaths || folderPaths.length === 0) return [];
 
-    let normalized = folderPaths[0]!.replace(/\\/g, '/');
-    if (/^[a-zA-Z]:$/.test(normalized)) {
-      normalized += '/';
-    }
-    let name = normalized.split('/').filter(Boolean).pop() || 'Music';
-    if (/^[a-zA-Z]:$/.test(name)) {
-      name = `Drive (${name})`;
-    }
-
-    return {
-      kind: 'path',
-      path: normalized,
-      name,
-    };
+    return folderPaths.map((fp) => {
+      let normalized = fp.replace(/\\/g, '/');
+      if (/^[a-zA-Z]:$/.test(normalized)) {
+        normalized += '/';
+      }
+      let name = normalized.split('/').filter(Boolean).pop() || 'Music';
+      if (/^[a-zA-Z]:$/.test(name)) {
+        name = `Drive (${name})`;
+      }
+      return {
+        kind: 'path',
+        path: normalized,
+        name,
+      };
+    });
   }
 
   /** Scan a source directory recursively using Node.js fs via IPC */
@@ -106,12 +113,13 @@ export class ElectronAdapter implements PlatformAdapter {
         if (signal.aborted) return;
 
         try {
-          const buffer = await bridge.fs.readFile(item.fullPath);
+          // Read up to 1.5MB for metadata & embedded artwork (avoids serializing 50MB audio files over IPC)
+          const buffer = await bridge.fs.readFile(item.fullPath, 1.5 * 1024 * 1024);
           const file = new File([buffer as unknown as BlobPart], item.name, { lastModified: item.lastModified });
 
           yield {
             name: item.name,
-            relPath: item.fullPath,
+            relPath: item.relPath, // Relative to source root for clean folder grouping & hierarchy
             size: item.size,
             lastModified: item.lastModified,
             file,
@@ -167,7 +175,10 @@ export class ElectronAdapter implements PlatformAdapter {
 
     const root = source.path ? source.path.replace(/\\/g, '/') : '';
     const rel = track.relPath.replace(/\\/g, '/');
-    const fullPath = root ? `${root.replace(/\/$/, '')}/${rel.replace(/^\//, '')}` : rel;
+    const fullPath =
+      root && !/^[a-zA-Z]:\//.test(rel) && !rel.startsWith('/')
+        ? `${root.replace(/\/$/, '')}/${rel.replace(/^\//, '')}`
+        : rel;
     const sidecarPath = fullPath.replace(/\.[^/.]+$/, `.${ext}`);
 
     try {
@@ -188,7 +199,10 @@ export class ElectronAdapter implements PlatformAdapter {
 
     const root = source.path ? source.path.replace(/\\/g, '/') : '';
     const rel = track.relPath.replace(/\\/g, '/');
-    const fullPath = root ? `${root.replace(/\/$/, '')}/${rel.replace(/^\//, '')}` : rel;
+    const fullPath =
+      root && !/^[a-zA-Z]:\//.test(rel) && !rel.startsWith('/')
+        ? `${root.replace(/\/$/, '')}/${rel.replace(/^\//, '')}`
+        : rel;
     const dir = fullPath.substring(0, fullPath.lastIndexOf('/'));
 
     for (const name of names) {
