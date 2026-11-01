@@ -1,0 +1,376 @@
+/* ============================================================
+   Sonara Global Styles
+   ============================================================ */
+
+@import 'tokens.css';
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/* ============================================================
+   Base Reset & Globals
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-family);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  color-scheme: dark;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  user-select: none;
+}
+
+[data-theme="light"] html,
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-width);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: var(--radius-pill);
+  transition: background var(--duration-normal) var(--ease);
+}
+
+/* Show thumb on panel hover */
+.scrollable-panel:hover ::-webkit-scrollbar-thumb,
+*:hover > ::-webkit-scrollbar-thumb,
+*:active > ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.scrollable-panel:hover,
+.scrollable-panel:hover * {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+/* ============================================================
+   Focus Styles
+   ============================================================ */
+
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ============================================================
+   Typography Utilities
+   ============================================================ */
+
+.text-display {
+  font-size: var(--text-display);
+  font-weight: var(--font-display);
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-tight);
+}
+
+.text-h2 {
+  font-size: var(--text-h2);
+  font-weight: var(--font-heading);
+  line-height: var(--leading-tight);
+}
+
+.text-title {
+  font-size: var(--text-card-title);
+  font-weight: var(--font-title);
+  line-height: var(--leading-normal);
+}
+
+.text-body {
+  font-size: var(--text-body);
+  font-weight: var(--font-body);
+  line-height: var(--leading-normal);
+}
+
+.text-caption {
+  font-size: var(--text-caption);
+  line-height: var(--leading-normal);
+}
+
+.text-table-header {
+  font-size: var(--text-table-header);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-header);
+  color: var(--text-sub);
+  font-weight: var(--font-medium);
+}
+
+/* ============================================================
+   Common Utilities
+   ============================================================ */
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes eq-bar {
+  0%, 100% { height: 3px; }
+  50% { height: 12px; }
+}
+
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.3); }
+  50% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+/* Route transition */
+.route-enter {
+  animation: fade-in 150ms var(--ease) both;
+}
+
+/* ============================================================
+   Reduced Motion
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+[data-reduced-motion="true"] *,
+[data-reduced-motion="true"] *::before,
+[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* ============================================================
+   Skeleton Loader
+   ============================================================ */
+
+.skeleton {
+  background: var(--bg-skeleton);
+  border-radius: var(--radius-thumb);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ============================================================
+   Interactive States
+   ============================================================ */
+
+.interactive {
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease);
+}
+
+.interactive:hover {
+  background: var(--bg-row-hover);
+}
+
+.interactive:active {
+  opacity: 0.8;
+}
+
+/* Button primary */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-weight: var(--font-title);
+  font-size: var(--text-body);
+  border: none;
+  border-radius: var(--radius-button);
+  padding: var(--space-2) var(--space-8);
+  height: 48px;
+  min-width: 48px;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  transform: scale(1.04);
+}
+
+.btn-primary:active {
+  background: var(--accent-pressed);
+  transform: scale(0.96);
+}
+
+/* Icon button */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-sub);
+  cursor: pointer;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2);
+  transition: color var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  transform: scale(1.06);
+}
+
+.icon-btn:active {
+  transform: scale(0.96);
+}
+
+.icon-btn.active {
+  color: var(--accent);
+}
+
+/* ============================================================
+   Equalizer animation glyph
+   ============================================================ */
+
+.eq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+
+.eq-bars span {
+  display: block;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: eq-bar 0.8s ease-in-out infinite;
+}
+
+.eq-bars span:nth-child(1) { animation-delay: 0s; height: 8px; }
+.eq-bars span:nth-child(2) { animation-delay: 0.15s; height: 12px; }
+.eq-bars span:nth-child(3) { animation-delay: 0.3s; height: 6px; }
+.eq-bars span:nth-child(4) { animation-delay: 0.45s; height: 10px; }
+
+.eq-bars.paused span {
+  animation-play-state: paused;
+}
+
+/* ============================================================
+   Drop Zone Overlay
+   ============================================================ */
+
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px dashed var(--accent);
+  border-radius: var(--radius-panel);
+  pointer-events: none;
+  animation: fade-in var(--duration-normal) var(--ease) both;
+}
+
+.drop-overlay-text {
+  font-size: var(--text-h2);
+  font-weight: var(--font-heading);
+  color: var(--text);
+}

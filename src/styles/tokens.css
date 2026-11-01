@@ -1,0 +1,205 @@
+/* ============================================================
+   Sonara Design Tokens
+   All design values as CSS custom properties.
+   Dark theme is default; light/amoled swap variable values.
+   ============================================================ */
+
+:root {
+  /* --- Colors: Dark theme (default) --- */
+  --bg-base: #000000;
+  --bg-panel: #121212;
+  --bg-card: #181818;
+  --bg-card-hover: #282828;
+  --bg-row-hover: rgba(255, 255, 255, 0.10);
+  --bg-row-selected: rgba(255, 255, 255, 0.18);
+  --bg-elevated: #242424;
+  --bg-tooltip: #282828;
+  --bg-input: #1F1F1F;
+  --bg-skeleton: #2a2a2a;
+
+  --text: #FFFFFF;
+  --text-sub: #B3B3B3;
+  --text-faint: #727272;
+  --text-on-accent: #000000;
+
+  --divider: rgba(255, 255, 255, 0.10);
+
+  /* Accent */
+  --accent: #1ED760;
+  --accent-hover: #3BE477;
+  --accent-pressed: #169C46;
+  --accent-soft: rgba(30, 215, 96, 0.15);
+
+  --danger: #F15E6C;
+  --danger-hover: #f47a85;
+  --warning: #FFA42B;
+
+  /* Liked Songs gradient */
+  --liked-gradient: linear-gradient(135deg, #450AF5, #8E8EE5);
+
+  /* --- Typography --- */
+  --font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 800;
+  --font-heading: 700;
+  --font-title: 700;
+  --font-body: 400;
+  --font-medium: 500;
+
+  --text-display: clamp(32px, 6vw, 72px);
+  --text-h2: 24px;
+  --text-card-title: 16px;
+  --text-body: 14px;
+  --text-caption: 12px;
+  --text-table-header: 12px;
+
+  --tracking-display: -0.04em;
+  --tracking-header: 0.08em;
+  --leading-tight: 1.2;
+  --leading-normal: 1.4;
+  --leading-relaxed: 1.6;
+
+  /* --- Spacing (4px grid) --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* --- Radii --- */
+  --radius-thumb: 4px;
+  --radius-panel: 8px;
+  --radius-card: 8px;
+  --radius-cover: 4px;
+  --radius-cover-lg: 6px;
+  --radius-pill: 999px;
+  --radius-button: 999px;
+
+  /* --- Shadows --- */
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-menu: 0 16px 24px rgba(0, 0, 0, 0.3);
+  --shadow-cover: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  /* --- Motion --- */
+  --ease: cubic-bezier(0.3, 0, 0.4, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+
+  /* --- Z-index scale --- */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-panel: 20;
+  --z-overlay: 30;
+  --z-modal: 40;
+  --z-menu: 50;
+  --z-tooltip: 60;
+  --z-toast: 70;
+  --z-max: 100;
+
+  /* --- Scrollbar --- */
+  --scrollbar-width: 8px;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.3);
+  --scrollbar-track: transparent;
+
+  /* --- Layout --- */
+  --titlebar-right-inset: 0px;
+  --sidebar-width: 320px;
+  --right-panel-width: 340px;
+  --player-bar-height: 80px;
+  --top-bar-height: 56px;
+
+  /* --- Focus --- */
+  --focus-ring: 2px solid white;
+  --focus-offset: 2px;
+}
+
+/* ============================================================
+   Light theme
+   ============================================================ */
+[data-theme="light"] {
+  --bg-base: #F0F0F0;
+  --bg-panel: #FFFFFF;
+  --bg-card: #F5F5F5;
+  --bg-card-hover: #E8E8E8;
+  --bg-row-hover: rgba(0, 0, 0, 0.06);
+  --bg-row-selected: rgba(0, 0, 0, 0.10);
+  --bg-elevated: #FFFFFF;
+  --bg-tooltip: #282828;
+  --bg-input: #E8E8E8;
+  --bg-skeleton: #e0e0e0;
+
+  --text: #000000;
+  --text-sub: #6A6A6A;
+  --text-faint: #A0A0A0;
+  --text-on-accent: #000000;
+
+  --divider: rgba(0, 0, 0, 0.10);
+
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-menu: 0 16px 24px rgba(0, 0, 0, 0.1);
+  --shadow-cover: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-elevated: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.3);
+
+  --focus-ring: 2px solid #000000;
+}
+
+/* ============================================================
+   AMOLED theme
+   ============================================================ */
+[data-theme="amoled"] {
+  --bg-base: #000000;
+  --bg-panel: #000000;
+  --bg-card: #0A0A0A;
+  --bg-card-hover: #1A1A1A;
+  --bg-row-hover: rgba(255, 255, 255, 0.08);
+  --bg-row-selected: rgba(255, 255, 255, 0.14);
+  --bg-elevated: #141414;
+  --bg-input: #141414;
+  --bg-skeleton: #1a1a1a;
+}
+
+/* ============================================================
+   Accent color presets
+   ============================================================ */
+[data-accent="blue"] {
+  --accent: #1E90FF;
+  --accent-hover: #4DA6FF;
+  --accent-pressed: #1570CC;
+  --accent-soft: rgba(30, 144, 255, 0.15);
+}
+
+[data-accent="violet"] {
+  --accent: #8B5CF6;
+  --accent-hover: #A78BFA;
+  --accent-pressed: #6D28D9;
+  --accent-soft: rgba(139, 92, 246, 0.15);
+}
+
+[data-accent="pink"] {
+  --accent: #EC4899;
+  --accent-hover: #F472B6;
+  --accent-pressed: #BE185D;
+  --accent-soft: rgba(236, 72, 153, 0.15);
+}
+
+[data-accent="orange"] {
+  --accent: #F97316;
+  --accent-hover: #FB923C;
+  --accent-pressed: #C2410C;
+  --accent-soft: rgba(249, 115, 22, 0.15);
+}
+
+[data-accent="red"] {
+  --accent: #EF4444;
+  --accent-hover: #F87171;
+  --accent-pressed: #B91C1C;
+  --accent-soft: rgba(239, 68, 68, 0.15);
+}
