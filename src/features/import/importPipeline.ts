@@ -50,6 +50,48 @@ export class ImportPipeline {
     await this.scanSource(source, { ...options, createPlaylistPerFolder: true });
   }
 
+  async importFolderPath(rawPath: string, options: ImportOptions = {}): Promise<boolean> {
+    const trimmed = rawPath.trim().replace(/^["']|["']$/g, '');
+    if (!trimmed) {
+      toast.error('Please enter a valid folder path');
+      return false;
+    }
+
+    const bridge = (window as any).sonara || (window as any).electronAPI;
+    const normalized = trimmed.replace(/\\/g, '/');
+
+    if (bridge?.fs?.dirExists) {
+      const exists = await bridge.fs.dirExists(trimmed);
+      if (!exists) {
+        toast.error(`Folder not found: "${trimmed}". Please verify the path exists.`);
+        return false;
+      }
+    }
+
+    const folderName = normalized.split('/').filter(Boolean).pop() || 'Music Folder';
+
+    let source = await db.sources.where('path').equals(normalized).first();
+    if (!source) {
+      const sourceId = `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      source = {
+        id: sourceId,
+        kind: 'path',
+        name: folderName,
+        path: normalized,
+        addedAt: Date.now(),
+        lastScanAt: Date.now(),
+        autoScan: true,
+      };
+      await db.sources.put(source);
+    } else {
+      source.lastScanAt = Date.now();
+      await db.sources.put(source);
+    }
+
+    await this.scanSource(source, { ...options, createPlaylistPerFolder: true });
+    return true;
+  }
+
   async importFiles(): Promise<void> {
     const platform = getPlatform();
     const refs = await platform.pickFiles();

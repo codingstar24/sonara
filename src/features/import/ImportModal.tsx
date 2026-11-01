@@ -13,12 +13,33 @@ export const ImportModal: FC<ImportModalProps> = ({ open, onOpenChange }) => {
   const [createPlaylistPerFolder, setCreatePlaylistPerFolder] = useState(true);
   const [skipShortFiles, setSkipShortFiles] = useState(false);
 
+  const [customPath, setCustomPath] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleStartImport = async () => {
     onOpenChange(false);
     await importPipeline.importFolder({
       createPlaylistPerFolder,
       minTrackDurationS: skipShortFiles ? 30 : 0,
     });
+  };
+
+  const handleCustomPathImport = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!customPath.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const success = await importPipeline.importFolderPath(customPath, {
+        createPlaylistPerFolder,
+        minTrackDurationS: skipShortFiles ? 30 : 0,
+      });
+      if (success) {
+        setCustomPath('');
+        onOpenChange(false);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -45,7 +66,7 @@ export const ImportModal: FC<ImportModalProps> = ({ open, onOpenChange }) => {
             borderRadius: 'var(--radius-card)',
             boxShadow: 'var(--shadow-dropdown)',
             width: '90vw',
-            maxWidth: 480,
+            maxWidth: 520,
             zIndex: 1001,
             color: 'var(--text)',
             outline: 'none',
@@ -86,12 +107,60 @@ export const ImportModal: FC<ImportModalProps> = ({ open, onOpenChange }) => {
             </Dialog.Close>
           </div>
 
-          <Dialog.Description style={{ color: 'var(--text-sub)', fontSize: 'var(--text-body)', marginBottom: '24px', lineHeight: 1.5 }}>
-            Choose a folder on your computer. Sonara will recursively scan and index your music files locally. No files will be moved or modified.
+          <Dialog.Description style={{ color: 'var(--text-sub)', fontSize: 'var(--text-body)', marginBottom: '20px', lineHeight: 1.5 }}>
+            Choose a folder or type a custom directory path. Sonara will recursively scan and index your music files locally.
           </Dialog.Description>
 
+          {/* Custom Path Input */}
+          <form onSubmit={handleCustomPathImport} style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: 'var(--text)' }}>
+              Enter Custom Folder Path
+            </label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="e.g. D:\Music or C:\Users\Username\Music"
+                value={customPath}
+                onChange={(e) => setCustomPath(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-thumb)',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  fontSize: '13px',
+                  outline: 'none',
+                }}
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={!customPath.trim() || isSubmitting}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {isSubmitting ? 'Adding...' : 'Add Path'}
+              </Button>
+            </div>
+          </form>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              margin: '16px 0',
+              color: 'var(--text-sub)',
+              fontSize: '12px',
+            }}
+          >
+            <div style={{ flex: 1, height: 1, backgroundColor: 'var(--border)' }} />
+            <span>OR BROWSE SYSTEM</span>
+            <div style={{ flex: 1, height: 1, backgroundColor: 'var(--border)' }} />
+          </div>
+
           {/* Options */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '28px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', fontSize: 'var(--text-body)' }}>
               <input
                 type="checkbox"
@@ -118,8 +187,8 @@ export const ImportModal: FC<ImportModalProps> = ({ open, onOpenChange }) => {
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleStartImport}>
-              Select Folder
+            <Button variant="secondary" onClick={handleStartImport}>
+              Browse Folders...
             </Button>
           </div>
         </Dialog.Content>

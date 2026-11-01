@@ -262,10 +262,20 @@ export class AudioEngine {
   }
 
   private applyVolume(): void {
-    if (!this.volumeGain) return;
     const v = this.isMuted ? 0 : this.volume;
-    // Perceptual volume: gain = v^2
-    this.volumeGain.gain.setValueAtTime(v * v, this.ctx?.currentTime ?? 0);
+    if (this.audioA) {
+      this.audioA.volume = v;
+    }
+    if (this.audioB) {
+      this.audioB.volume = v;
+    }
+    if (this.volumeGain && this.ctx) {
+      try {
+        this.volumeGain.gain.setValueAtTime(v * v, this.ctx.currentTime);
+      } catch {
+        this.volumeGain.gain.value = v * v;
+      }
+    }
   }
 
   public setSpeed(speed: number): void {

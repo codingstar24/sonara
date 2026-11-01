@@ -7,6 +7,7 @@ import {
   SIDEBAR_DEFAULT_WIDTH,
   RIGHT_PANEL_DEFAULT_WIDTH,
 } from '@/config/app';
+import { audioEngine } from '@/engine/audioEngine';
 
 // ============================================================
 // Settings Store
@@ -398,9 +399,21 @@ export const usePlayerStore = create<PlayerState>()(
     setPlaying: (p) => set({ isPlaying: p }),
     setCurrentTrackId: (id) => set({ currentTrackId: id }),
     setDuration: (d) => set({ duration: d }),
-    setVolume: (v) => set({ volume: Math.max(0, Math.min(1, v)) }),
-    setMuted: (m) => set({ muted: m }),
-    toggleMute: () => set({ muted: !get().muted }),
+    setVolume: (v) => {
+      const vol = Math.max(0, Math.min(1, v));
+      set({ volume: vol, muted: false });
+      audioEngine.setVolume(vol);
+      audioEngine.setMuted(false);
+    },
+    setMuted: (m) => {
+      set({ muted: m });
+      audioEngine.setMuted(m);
+    },
+    toggleMute: () => {
+      const next = !get().muted;
+      set({ muted: next });
+      audioEngine.setMuted(next);
+    },
     setShuffle: (s) => set({ shuffle: s }),
     toggleShuffle: () => set({ shuffle: !get().shuffle }),
     setRepeat: (r) => set({ repeat: r }),

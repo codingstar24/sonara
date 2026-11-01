@@ -24,6 +24,7 @@ export interface ElectronSonaraBridge {
   };
   fs: {
     scanDirectory: (dirPath: string) => Promise<ScannedFileItem[]>;
+    dirExists: (dirPath: string) => Promise<boolean>;
     readFile: (filePath: string) => Promise<Uint8Array>;
     readText: (filePath: string) => Promise<string | null>;
     showInFolder: (filePath: string) => Promise<void>;
@@ -54,6 +55,7 @@ const bridge: ElectronSonaraBridge = {
   },
   fs: {
     scanDirectory: (dirPath: string) => ipcRenderer.invoke('fs-scan-directory', dirPath),
+    dirExists: (dirPath: string) => ipcRenderer.invoke('fs-dir-exists', dirPath),
     readFile: (filePath: string) => ipcRenderer.invoke('fs-read-file', filePath),
     readText: (filePath: string) => ipcRenderer.invoke('fs-read-text', filePath),
     showInFolder: (filePath: string) => ipcRenderer.invoke('fs-show-in-folder', filePath),

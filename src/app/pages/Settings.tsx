@@ -19,6 +19,9 @@ import { db } from '@/db/schema';
 import { useSettingsStore, useLibraryStore, useUIStore } from '../stores';
 import { APP_NAME, APP_VERSION, APP_AUTHOR, APP_CREDITS } from '@/config/app';
 import { createLibraryBackup, downloadBackupFile, restoreLibraryBackup } from '@/lib/backup';
+import { importPipeline } from '@/features/import/importPipeline';
+import { Button } from '@/components/ui/Button';
+import type { Source } from '@/db/types';
 
 type SettingsTab = 'appearance' | 'playback' | 'library' | 'home' | 'shortcuts' | 'data' | 'about';
 
@@ -29,13 +32,17 @@ export const SettingsPage: FC = () => {
   const totalTracks = useLibraryStore((s) => s.totalTracks);
   const setEqualizerOpen = useUIStore((s) => s.setEqualizerOpen);
 
-  // Storage estimation
   const [storageEstimate, setStorageEstimate] = useState<{ usageMB: number; quotaMB: number } | null>(null);
   const [isPersisted, setIsPersisted] = useState(false);
-  const [sources, setSources] = useState<Array<{ id: string; name: string; kind: string; addedAt: number }>>([]);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [customPath, setCustomPath] = useState('');
+  const [isAddingPath, setIsAddingPath] = useState(false);
+
+  const loadSources = () => {
+    db.sources.toArray().then((srcs) => setSources(srcs.filter((s) => !s.id.startsWith('demo-'))));
+  };
 
   useEffect(() => {
-    // Check storage persist status
     if (typeof navigator !== 'undefined' && navigator.storage) {
       if (navigator.storage.persisted) {
         navigator.storage.persisted().then(setIsPersisted);
@@ -49,10 +56,41 @@ export const SettingsPage: FC = () => {
         });
       }
     }
+    loadSources();
+  }, [totalTracks]);
 
-    // Load sources
-    db.sources.toArray().then((srcs) => setSources(srcs));
-  }, []);
+  const handleAddCustomPath = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!customPath.trim()) return;
+    setIsAddingPath(true);
+    try {
+      const ok = await importPipeline.importFolderPath(customPath);
+      if (ok) {
+        setCustomPath('');
+        loadSources();
+      }
+    } finally {
+      setIsAddingPath(false);
+    }
+  };
+
+  const handleBrowseFolder = async () => {
+    await importPipeline.importFolder();
+    loadSources();
+  };
+
+  const handleRemoveSource = async (srcId: string, srcName: string) => {
+    if (!confirm(`Are you sure you want to remove folder "${srcName}" from configured sources?`)) return;
+    await db.sources.delete(srcId);
+    toast.success(`Removed "${srcName}"`);
+    loadSources();
+  };
+
+  const handleRescanSource = async (src: Source) => {
+    toast.info(`Rescanning "${src.name}"...`);
+    await importPipeline.scanSource(src, { createPlaylistPerFolder: true });
+    loadSources();
+  };
 
   const handleRequestPersistentStorage = async () => {
     if (navigator.storage && navigator.storage.persist) {
@@ -423,6 +461,50 @@ export const SettingsPage: FC = () => {
             </div>
           </div>
 
+          {/* Add Music Folder Card */}
+          <div style={{ padding: '20px', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-card)' }}>
+            <h3 style={{ margin: '0 0 8px 0', fontWeight: 'var(--font-bold)', fontSize: 'var(--text-body)' }}>
+              Add Music Folder
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: 'var(--text-caption)', color: 'var(--text-sub)' }}>
+              Enter any local folder path (e.g. D:\Music) or browse your files to add songs and generate a playlist.
+            </p>
+
+            <form onSubmit={handleAddCustomPath} style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <input
+                type="text"
+                placeholder="Enter custom folder path (e.g. D:\Music or C:\Users\Username\Music)"
+                value={customPath}
+                onChange={(e) => setCustomPath(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-thumb)',
+                  backgroundColor: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  fontSize: '13px',
+                  outline: 'none',
+                }}
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={!customPath.trim() || isAddingPath}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {isAddingPath ? 'Adding...' : 'Add Path'}
+              </Button>
+            </form>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Button variant="secondary" onClick={handleBrowseFolder}>
+                <Folder size={18} weight="fill" style={{ marginRight: 6 }} />
+                Browse Folders...
+              </Button>
+            </div>
+          </div>
+
           {/* Music Sources List */}
           <div style={{ padding: '20px', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-card)' }}>
             <h3 style={{ margin: '0 0 12px 0', fontWeight: 'var(--font-bold)' }}>
@@ -439,16 +521,37 @@ export const SettingsPage: FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '10px 14px',
+                      padding: '12px 14px',
                       backgroundColor: 'var(--bg-elevated)',
                       borderRadius: 6,
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 'var(--font-bold)', fontSize: '14px' }}>{src.name}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-sub)' }}>
-                        Added {new Date(src.addedAt).toLocaleDateString()}
+                      <div style={{ fontWeight: 'var(--font-bold)', fontSize: '14px', color: 'var(--text)' }}>
+                        {src.name}
                       </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-sub)', marginTop: 2 }}>
+                        {src.path || 'Local folder'} • Added {new Date(src.addedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => void handleRescanSource(src)}
+                        className="icon-btn"
+                        title="Rescan Folder"
+                        style={{ padding: 6 }}
+                      >
+                        <ArrowsClockwise size={18} />
+                      </button>
+                      <button
+                        onClick={() => void handleRemoveSource(src.id, src.name)}
+                        className="icon-btn hover:text-[var(--status-danger)]"
+                        title="Remove Folder"
+                        style={{ padding: 6 }}
+                      >
+                        <Trash size={18} />
+                      </button>
                     </div>
                   </div>
                 ))}

@@ -24,6 +24,7 @@ interface ElectronBridge {
       size: number;
       lastModified: number;
     }>>;
+    dirExists: (dirPath: string) => Promise<boolean>;
     readFile: (filePath: string) => Promise<Uint8Array>;
     readText: (filePath: string) => Promise<string | null>;
     showInFolder: (filePath: string) => Promise<void>;

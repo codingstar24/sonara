@@ -350,6 +350,16 @@ function setupIpc() {
     return results;
   });
 
+  ipcMain.handle('fs-dir-exists', async (_, dirPath: string) => {
+    try {
+      const resolved = path.resolve(dirPath);
+      const stat = await fs.promises.stat(resolved);
+      return stat.isDirectory();
+    } catch {
+      return false;
+    }
+  });
+
   ipcMain.handle('fs-read-file', async (_, filePath: string) => {
     return fs.promises.readFile(path.resolve(filePath));
   });
