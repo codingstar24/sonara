@@ -329,10 +329,28 @@ import {
 // Helper to load track from DB and play through audioEngine
 async function loadAndPlayTrack(trackId: string): Promise<void> {
   const track = await db.tracks.get(trackId);
-  if (!track) return;
+  if (!track) {
+    console.warn('loadAndPlayTrack: track not found in database:', trackId);
+    return;
+  }
 
-  const source = await db.sources.get(track.sourceId);
-  if (!source) return;
+  let source = await db.sources.get(track.sourceId);
+  if (!source) {
+    const allSources = await db.sources.toArray();
+    source =
+      allSources.find((s) => s.path && track.relPath.includes(s.path)) ||
+      allSources[0];
+    if (!source) {
+      source = {
+        id: track.sourceId || 'default-source',
+        kind: 'path',
+        name: 'Local Music',
+        addedAt: Date.now(),
+        lastScanAt: Date.now(),
+        autoScan: false,
+      };
+    }
+  }
 
   const context = useQueueStore.getState().context;
   startTrackSession(track.id, track.duration, context?.type, context?.id);

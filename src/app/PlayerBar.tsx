@@ -16,6 +16,7 @@ import {
   MicrophoneStage,
   Equalizer,
   CornersOut,
+  Browsers,
 } from '@phosphor-icons/react';
 import { usePlayerStore, useUIStore, useLibraryStore } from './stores';
 import { useQueueStore } from '@/features/queue/queueStore';
@@ -360,7 +361,7 @@ export const PlayerBar: FC = () => {
       aria-label="Now Playing bar"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(200px, 30%) 1fr minmax(200px, 30%)',
+        gridTemplateColumns: 'minmax(180px, 28%) 1fr minmax(280px, 32%)',
         alignItems: 'center',
         padding: '0 16px',
         background: 'var(--bg-base)',
@@ -549,7 +550,25 @@ export const PlayerBar: FC = () => {
       </div>
 
       {/* Right: Volume + extras */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', minWidth: 0 }}>
+        {/* Now Playing View */}
+        <button
+          onClick={() => toggleRightPanel('now-playing')}
+          aria-label="Now Playing View"
+          title="Now playing view"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: rightPanelOpen && rightPanelMode === 'now-playing' ? 'var(--accent)' : 'var(--text-sub)',
+            cursor: 'pointer',
+            padding: 4,
+            flexShrink: 0,
+          }}
+          className="hover:text-white"
+        >
+          <Browsers size={18} weight={rightPanelOpen && rightPanelMode === 'now-playing' ? 'fill' : 'regular'} />
+        </button>
+
         {/* Lyrics */}
         <button
           onClick={() => toggleRightPanel('lyrics')}

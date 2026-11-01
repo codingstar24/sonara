@@ -8,6 +8,7 @@ import { useLibraryStore, useSettingsStore } from '@/app/stores';
 import { parseM3U, parsePLS } from '@/lib/m3uParser';
 import { parseLrc } from '@/lib/lrcParser';
 import { ORDER_KEY_INITIAL, ORDER_KEY_GAP, IMPORT_BATCH_SIZE } from '@/config/app';
+import { usePlaylistStore } from '@/features/playlists/playlistStore';
 
 export interface ImportOptions {
   createPlaylistPerFolder?: boolean;
@@ -22,19 +23,30 @@ export class ImportPipeline {
     const sourceRef = await platform.pickFolder();
     if (!sourceRef) return;
 
-    const sourceId = `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const source: Source = {
-      id: sourceId,
-      kind: sourceRef.kind,
-      name: sourceRef.name,
-      handle: sourceRef.handle,
-      path: sourceRef.path,
-      addedAt: Date.now(),
-      lastScanAt: Date.now(),
-      autoScan: true,
-    };
+    // Check if source already exists with this path
+    let source: Source | undefined;
+    if (sourceRef.path) {
+      source = await db.sources.where('path').equals(sourceRef.path).first();
+    }
 
-    await db.sources.put(source);
+    if (!source) {
+      const sourceId = `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      source = {
+        id: sourceId,
+        kind: sourceRef.kind,
+        name: sourceRef.name,
+        handle: sourceRef.handle,
+        path: sourceRef.path,
+        addedAt: Date.now(),
+        lastScanAt: Date.now(),
+        autoScan: true,
+      };
+      await db.sources.put(source);
+    } else {
+      source.lastScanAt = Date.now();
+      await db.sources.put(source);
+    }
+
     await this.scanSource(source, options);
   }
 
@@ -78,12 +90,29 @@ export class ImportPipeline {
         const ref = refs[i]!;
         store.updateProgress(ref.name, i + 1, refs.length);
 
-        if (!ref.handle) continue;
-        const file = await (ref.handle as FileSystemFileHandle).getFile();
+        let file: File | null = null;
+        if (ref.path) {
+          const bridge = (window as any).sonara || (window as any).electronAPI;
+          if (bridge) {
+            try {
+              const buffer = await bridge.fs.readFile(ref.path);
+              file = new File([buffer as unknown as BlobPart], ref.name);
+            } catch (err) {
+              console.warn('Failed to read file from path:', ref.path, err);
+            }
+          }
+        } else if (ref.handle instanceof File) {
+          file = ref.handle;
+        } else if (ref.handle && typeof (ref.handle as any).getFile === 'function') {
+          file = await (ref.handle as FileSystemFileHandle).getFile();
+        }
 
+        if (!file) continue;
+
+        const relPath = ref.path ? ref.path.replace(/\\/g, '/') : ref.name;
         const result = await importWorkerPool.parseFile({
           sourceId,
-          relPath: ref.name,
+          relPath,
           name: ref.name,
           size: file.size,
           lastModified: file.lastModified,
@@ -159,9 +188,15 @@ export class ImportPipeline {
         useLibraryStore.getState().addTracks(liteBatch);
       }
 
-      toast.success(
-        `Added ${addedCount} ${addedCount === 1 ? 'song' : 'songs'} • ${dupCount} duplicates skipped • ${unsupportedCount} unsupported`
-      );
+      if (addedCount === 0 && dupCount > 0) {
+        toast.info(`All ${dupCount} ${dupCount === 1 ? 'file is' : 'files are'} already in your library.`);
+      } else if (addedCount === 0 && dupCount === 0) {
+        toast.info('No audio files were imported.');
+      } else {
+        toast.success(
+          `Added ${addedCount} ${addedCount === 1 ? 'song' : 'songs'}${dupCount > 0 ? ` • ${dupCount} already present` : ''}${unsupportedCount > 0 ? ` • ${unsupportedCount} unsupported` : ''}`
+        );
+      }
     } finally {
       store.finishImport();
     }
@@ -284,12 +319,10 @@ export class ImportPipeline {
             // Track folder for playlist generation
             if (options.createPlaylistPerFolder) {
               const segs = scanned.relPath.split(/[/\\]/);
-              if (segs.length > 1) {
-                const folderName = segs[segs.length - 2]!;
-                const existingList = folderMap.get(folderName) ?? [];
-                existingList.push(result.track.id);
-                folderMap.set(folderName, existingList);
-              }
+              const folderName = segs.length > 1 ? segs[segs.length - 2]! : source.name;
+              const existingList = folderMap.get(folderName) ?? [];
+              existingList.push(result.track.id);
+              folderMap.set(folderName, existingList);
             }
 
             addedCount++;
@@ -334,11 +367,18 @@ export class ImportPipeline {
           }));
           await db.playlistTracks.bulkPut(plTracks);
         }
+        await usePlaylistStore.getState().hydrate();
       }
 
-      toast.success(
-        `Added ${addedCount} ${addedCount === 1 ? 'song' : 'songs'} • ${dupCount} duplicates skipped • ${unsupportedCount} unsupported`
-      );
+      if (addedCount === 0 && dupCount > 0) {
+        toast.info(`All ${dupCount} ${dupCount === 1 ? 'song' : 'songs'} in this folder are already in your library.`);
+      } else if (addedCount === 0 && dupCount === 0) {
+        toast.info('No supported audio files found in selected folder.');
+      } else {
+        toast.success(
+          `Added ${addedCount} ${addedCount === 1 ? 'song' : 'songs'}${dupCount > 0 ? ` • ${dupCount} already present` : ''}${unsupportedCount > 0 ? ` • ${unsupportedCount} unsupported` : ''}`
+        );
+      }
     } catch (err: any) {
       if (!signal.aborted) {
         toast.error(`Scan error: ${err?.message || 'Unknown error'}`);
@@ -418,12 +458,157 @@ export class ImportPipeline {
         addedAt: Date.now(),
       }));
       await db.playlistTracks.bulkPut(plTracks);
+      await usePlaylistStore.getState().hydrate();
 
       toast.success(
         `Imported "${parsed.name}": matched ${matchedTrackIds.length} of ${parsed.entries.length} songs`
       );
     } else {
       toast.error(`No tracks in "${file.name}" could be matched to your library`);
+    }
+  }
+
+  async importDroppedFiles(files: File[]): Promise<void> {
+    const playlists: File[] = [];
+    const directAudioFiles: File[] = [];
+    const audioExts = new Set(['.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a', '.aac', '.webm', '.wma']);
+
+    for (const f of files) {
+      const lower = f.name.toLowerCase();
+      if (lower.endsWith('.m3u') || lower.endsWith('.m3u8') || lower.endsWith('.pls')) {
+        playlists.push(f);
+      } else {
+        const dotIdx = lower.lastIndexOf('.');
+        const ext = dotIdx !== -1 ? lower.slice(dotIdx) : '';
+        if (audioExts.has(ext)) {
+          directAudioFiles.push(f);
+        }
+      }
+    }
+
+    for (const pl of playlists) {
+      await this.importPlaylist(pl);
+    }
+
+    if (directAudioFiles.length > 0) {
+      const sourceId = `src_dropped_${Date.now()}`;
+      const source: Source = {
+        id: sourceId,
+        kind: 'file-handle',
+        name: 'Dropped Audio',
+        addedAt: Date.now(),
+        lastScanAt: Date.now(),
+        autoScan: false,
+      };
+      await db.sources.put(source);
+
+      const store = useImportStore.getState();
+      store.startImport();
+      const allowDuplicates = useSettingsStore.getState().allowDuplicates;
+      const existingFingerprints = new Set(
+        Array.from(useLibraryStore.getState().tracks.values()).map((t) => t.fingerprint)
+      );
+
+      let addedCount = 0;
+      let dupCount = 0;
+      let unsupportedCount = 0;
+      const tracksBatch: Track[] = [];
+      const artworkBatch: Artwork[] = [];
+      const liteBatch: TrackLite[] = [];
+
+      try {
+        for (let i = 0; i < directAudioFiles.length; i++) {
+          const file = directAudioFiles[i]!;
+          store.updateProgress(file.name, i + 1, directAudioFiles.length);
+
+          const filePath = (file as any).path ? (file as any).path.replace(/\\/g, '/') : file.name;
+          const result = await importWorkerPool.parseFile({
+            sourceId,
+            relPath: filePath,
+            name: file.name,
+            size: file.size,
+            lastModified: file.lastModified,
+            blob: file,
+          });
+
+          if (result.success && result.track) {
+            if (!allowDuplicates && existingFingerprints.has(result.track.fingerprint)) {
+              dupCount++;
+              continue;
+            }
+            existingFingerprints.add(result.track.fingerprint);
+            if (result.track.unsupported) unsupportedCount++;
+
+            tracksBatch.push({
+              ...result.track,
+              year: result.track.year ?? null,
+              trackNo: result.track.trackNo ?? null,
+              discNo: result.track.discNo ?? null,
+              bitrate: result.track.bitrate ?? null,
+              sampleRate: result.track.sampleRate ?? null,
+              codec: result.track.codec ?? '',
+              lossless: result.track.lossless ?? false,
+              artworkId: result.track.artworkId ?? null,
+              missing: false,
+              unsupported: result.track.unsupported ?? false,
+              overrides: null,
+              hiddenFromRecs: false,
+            });
+
+            liteBatch.push({
+              id: result.track.id,
+              title: result.track.title,
+              artist: result.track.artist,
+              albumArtist: result.track.albumArtist,
+              album: result.track.album,
+              genres: result.track.genres,
+              year: result.track.year ?? null,
+              duration: result.track.duration,
+              artworkId: result.track.artworkId ?? null,
+              sourceId: result.track.sourceId,
+              relPath: result.track.relPath,
+              fingerprint: result.track.fingerprint,
+              addedAt: result.track.addedAt,
+              trackNo: result.track.trackNo ?? null,
+              discNo: result.track.discNo ?? null,
+              missing: false,
+              unsupported: result.track.unsupported ?? false,
+              lossless: result.track.lossless ?? false,
+              codec: result.track.codec ?? '',
+              hiddenFromRecs: false,
+            });
+
+            if (result.artwork) {
+              artworkBatch.push({
+                id: result.artwork.id,
+                full: result.artwork.full,
+                thumb: result.artwork.thumb,
+                dominantColor: result.artwork.dominantColor,
+              });
+            }
+
+            addedCount++;
+          }
+        }
+
+        if (tracksBatch.length > 0) {
+          await db.tracks.bulkPut(tracksBatch);
+          if (artworkBatch.length > 0) {
+            await db.artwork.bulkPut(artworkBatch);
+          }
+          useLibraryStore.getState().addTracks(liteBatch);
+        }
+
+        if (addedCount > 0) {
+          toast.success(
+            `Added ${addedCount} ${addedCount === 1 ? 'song' : 'songs'}${dupCount > 0 ? ` • ${dupCount} already present` : ''}${unsupportedCount > 0 ? ` • ${unsupportedCount} unsupported` : ''}`
+          );
+        } else if (dupCount > 0) {
+          toast.info(`All ${dupCount} songs are already in your library`);
+        }
+      } finally {
+        store.finishImport();
+      }
     }
   }
 

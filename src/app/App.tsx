@@ -34,6 +34,7 @@ import { usePlaylistStore } from '@/features/playlists/playlistStore';
 import { FullscreenModal } from '@/features/player/FullscreenModal';
 import { EqualizerModal } from '@/features/audio/EqualizerModal';
 import { CommandPalette } from '@/components/ui/CommandPalette';
+import { purgeAllDemoData } from '@/recommendation/purgeDemo';
 
 export const App: FC = () => {
   useKeyboardShortcuts();
@@ -51,11 +52,15 @@ export const App: FC = () => {
 
   // Initialize settings, library hydration, persisted queue, and resize listeners
   useEffect(() => {
-    void useSettingsStore.getState().load();
-    void useLibraryStore.getState().hydrate();
-    void useQueueStore.getState().loadPersisted();
-    void useLikesStore.getState().hydrate();
-    void usePlaylistStore.getState().hydrate();
+    const initApp = async () => {
+      void useSettingsStore.getState().load();
+      await purgeAllDemoData();
+      await useLibraryStore.getState().hydrate();
+      void useQueueStore.getState().loadPersisted();
+      void useLikesStore.getState().hydrate();
+      void usePlaylistStore.getState().hydrate();
+    };
+    void initApp();
 
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
@@ -98,12 +103,7 @@ export const App: FC = () => {
       const files = Array.from(e.dataTransfer?.files ?? []);
       if (!files.length) return;
 
-      for (const file of files) {
-        const lower = file.name.toLowerCase();
-        if (lower.endsWith('.m3u') || lower.endsWith('.m3u8') || lower.endsWith('.pls')) {
-          void importPipeline.importPlaylist(file);
-        }
-      }
+      void importPipeline.importDroppedFiles(files);
     };
 
     window.addEventListener('dragover', handleDragOver);
@@ -156,6 +156,7 @@ export const App: FC = () => {
             minHeight: 0,
             overflow: 'hidden',
             position: 'relative',
+            padding: '0 8px',
           }}
         >
           <Sidebar />

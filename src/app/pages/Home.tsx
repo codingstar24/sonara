@@ -10,7 +10,6 @@ import {
   Info,
   ArrowsClockwise,
 } from '@phosphor-icons/react';
-import { toast } from 'sonner';
 import { getCurrentDaypart, DAYPARTS } from '@/config/app';
 import { useSettingsStore, useLibraryStore } from '../stores';
 import { useQueueStore } from '@/features/queue/queueStore';
@@ -19,7 +18,9 @@ import {
   type HomeShelfData,
   type QuickPickItem,
 } from '@/recommendation/recommendationService';
-import { seedDemoData } from '@/recommendation/seedDemo';
+import { importPipeline } from '@/features/import/importPipeline';
+import { Folder, MusicNotes, FileText } from '@phosphor-icons/react';
+import { Button } from '@/components/ui/Button';
 import { Cover } from '@/components/ui/Cover';
 import type { TrackLite } from '@/db/types';
 
@@ -36,23 +37,6 @@ export const HomePage: FC = () => {
   const [shelfData, setShelfData] = useState<HomeShelfData | null>(null);
   const [loading, setLoading] = useState(true);
   const [mostPlayedTab, setMostPlayedTab] = useState<'today' | 'sevenDays' | 'thirtyDays' | 'allTime'>('sevenDays');
-  const [isSeeding, setIsSeeding] = useState(false);
-
-  // Check URL query for ?demo=1
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const hash = window.location.hash;
-    const isDemoRequested = params.get('demo') === '1' || hash.includes('demo=1');
-
-    if (isDemoRequested && totalTracks === 0 && !isSeeding) {
-      setIsSeeding(true);
-      toast.info('Loading demo library with 400 tracks and 90 days of history...');
-      void seedDemoData().then(() => {
-        setIsSeeding(false);
-        toast.success('Demo library loaded!');
-      });
-    }
-  }, [totalTracks, isSeeding]);
 
   const fetchRecs = async (force = false) => {
     setLoading(true);
@@ -168,60 +152,81 @@ export const HomePage: FC = () => {
         </button>
       </div>
 
-      {/* Cold start greeting banner if library is empty or new */}
-      {isColdStart && (
+      {/* Empty Library Onboarding Banner */}
+      {totalTracks === 0 ? (
         <div
           style={{
-            marginBottom: '32px',
-            padding: '24px 28px',
-            background: 'linear-gradient(135deg, rgba(30,215,96,0.15), rgba(18,18,18,0.8))',
+            marginBottom: '36px',
+            padding: '32px 36px',
+            background: 'linear-gradient(135deg, rgba(30,215,96,0.12), rgba(18,18,18,0.9))',
             border: '1px solid rgba(30,215,96,0.25)',
             borderRadius: 'var(--radius-card)',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            flexDirection: 'column',
             gap: '20px',
           }}
         >
           <div>
-            <h2 style={{ fontSize: 'var(--text-h3)', margin: '0 0 6px 0', color: 'var(--text)' }}>
+            <h2 style={{ fontSize: 'var(--text-h2)', margin: '0 0 8px 0', color: 'var(--text)' }}>
               Welcome to Sonara
             </h2>
-            <p style={{ margin: 0, color: 'var(--text-sub)', fontSize: 'var(--text-body)', maxWidth: 640 }}>
-              Play a few songs and Sonara will start tailoring this page to your unique taste. Or load the synthetic demo library to explore all personalized shelves right now.
+            <p style={{ margin: 0, color: 'var(--text-sub)', fontSize: 'var(--text-body)', maxWidth: 640, lineHeight: 1.6 }}>
+              Sonara plays audio files directly from your computer with 100% offline privacy, bit-perfect playback, and local recommendations. Connect a music folder to start listening.
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              setIsSeeding(true);
-              toast.info('Seeding demo library with 400 tracks...');
-              void seedDemoData().then(() => {
-                setIsSeeding(false);
-                toast.success('Demo library loaded!');
-                void fetchRecs(true);
-              });
-            }}
-            disabled={isSeeding}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: 'var(--accent)',
-              color: '#000',
-              fontWeight: 'var(--font-bold)',
-              borderRadius: 'var(--radius-pill)',
-              border: 'none',
-              cursor: isSeeding ? 'not-allowed' : 'pointer',
-              whiteSpace: 'nowrap',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <Sparkle size={18} weight="fill" />
-            <span>{isSeeding ? 'Loading...' : 'Load Demo Library'}</span>
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button
+              variant="primary"
+              onClick={() => void importPipeline.importFolder({ createPlaylistPerFolder: true })}
+            >
+              <Folder size={18} weight="fill" />
+              <span>Connect Music Folder</span>
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void importPipeline.importFiles()}
+            >
+              <MusicNotes size={18} />
+              <span>Add Audio Files</span>
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.m3u,.m3u8,.pls';
+                input.onchange = () => {
+                  const file = input.files?.[0];
+                  if (file) void importPipeline.importPlaylist(file);
+                };
+                input.click();
+              }}
+            >
+              <FileText size={18} />
+              <span>Import Playlist</span>
+            </Button>
+          </div>
         </div>
-      )}
+      ) : isColdStart ? (
+        <div
+          style={{
+            marginBottom: '28px',
+            padding: '16px 20px',
+            backgroundColor: 'var(--bg-card)',
+            borderRadius: 'var(--radius-card)',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-sub)',
+            fontSize: 'var(--text-caption)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <Sparkle size={18} color="var(--accent)" weight="fill" />
+          <span>Keep listening! Sonara will generate personalized daily mixes and tailored shelves as you play more tracks.</span>
+        </div>
+      ) : null}
 
       {/* 1. Quick Picks Grid (8 tiles, 56px high, hover play button) */}
       {shelfData && shelfData.quickPicks.length > 0 && (

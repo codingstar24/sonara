@@ -19,7 +19,6 @@ import { db } from '@/db/schema';
 import { useSettingsStore, useLibraryStore, useUIStore } from '../stores';
 import { APP_NAME, APP_VERSION, APP_AUTHOR, APP_CREDITS } from '@/config/app';
 import { createLibraryBackup, downloadBackupFile, restoreLibraryBackup } from '@/lib/backup';
-import { seedDemoData } from '@/recommendation/seedDemo';
 
 type SettingsTab = 'appearance' | 'playback' | 'library' | 'home' | 'shortcuts' | 'data' | 'about';
 
@@ -34,7 +33,6 @@ export const SettingsPage: FC = () => {
   const [storageEstimate, setStorageEstimate] = useState<{ usageMB: number; quotaMB: number } | null>(null);
   const [isPersisted, setIsPersisted] = useState(false);
   const [sources, setSources] = useState<Array<{ id: string; name: string; kind: string; addedAt: number }>>([]);
-  const [isSeeding, setIsSeeding] = useState(false);
 
   useEffect(() => {
     // Check storage persist status
@@ -458,43 +456,6 @@ export const SettingsPage: FC = () => {
             )}
           </div>
 
-          {/* Demo Library Button */}
-          <div style={{ padding: '20px', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-card)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontWeight: 'var(--font-bold)' }}>Load Synthetic Demo Library</div>
-                <div style={{ fontSize: 'var(--text-caption)', color: 'var(--text-sub)' }}>
-                  Populates 400 tracks across 8 genres and 90 days of listening history for testing
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setIsSeeding(true);
-                  toast.info('Loading demo library...');
-                  void seedDemoData().then(() => {
-                    setIsSeeding(false);
-                    toast.success('Demo library loaded successfully!');
-                  });
-                }}
-                disabled={isSeeding}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 18px',
-                  borderRadius: 'var(--radius-pill)',
-                  backgroundColor: 'var(--accent)',
-                  color: '#000',
-                  border: 'none',
-                  fontWeight: 'var(--font-bold)',
-                  cursor: isSeeding ? 'not-allowed' : 'pointer',
-                }}
-              >
-                <Sparkle size={16} weight="fill" />
-                <span>{isSeeding ? 'Loading...' : 'Load Demo'}</span>
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

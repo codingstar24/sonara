@@ -14,7 +14,7 @@ import * as fs from 'fs';
 
 // Set App User Model ID for Windows Taskbar
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.sonara.player');
+  app.setAppUserModelId('com.zohair.sonara');
 }
 
 // 1. Register privileged schemes before app is ready
@@ -22,7 +22,7 @@ protocol.registerSchemesAsPrivileged([
   {
     scheme: 'local-media',
     privileges: {
-      standard: false,
+      standard: true,
       secure: true,
       supportFetchAPI: true,
       corsEnabled: true,
@@ -109,21 +109,39 @@ function createWindow() {
 function setupProtocols() {
   // Protocol: local-media:// (streams user audio files with HTTP Range 206 support)
   protocol.handle('local-media', (request) => {
-    const url = new URL(request.url);
-    let filePath = decodeURIComponent(url.pathname);
-    if (process.platform === 'win32' && filePath.startsWith('/')) {
-      filePath = filePath.slice(1);
+    // 1. Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
+          'Access-Control-Max-Age': '86400',
+        },
+      });
     }
 
-    if (!fs.existsSync(filePath)) {
+    // 2. Decode file path cleanly
+    let raw = request.url.replace(/^local-media:\/\//i, '');
+    raw = raw.split('?')[0]!.split('#')[0]!;
+    let filePath = decodeURIComponent(raw);
+    if (process.platform === 'win32') {
+      // Remove any leading slashes before drive letter e.g. /d:/ -> d:/
+      filePath = filePath.replace(/^\/+([a-zA-Z]:)/, '$1');
+    }
+    const resolvedPath = path.resolve(filePath);
+
+    if (!fs.existsSync(resolvedPath)) {
+      console.warn('local-media: File not found:', resolvedPath, 'from request:', request.url);
       return new Response('File Not Found', { status: 404 });
     }
 
-    const stat = fs.statSync(filePath);
+    const stat = fs.statSync(resolvedPath);
     const fileSize = stat.size;
-    const rangeHeader = request.headers.get('range');
+    const rangeHeader = request.headers.get('range') || request.headers.get('Range');
 
-    const ext = path.extname(filePath).toLowerCase();
+    const ext = path.extname(resolvedPath).toLowerCase();
     const mimeTypes: Record<string, string> = {
       '.mp3': 'audio/mpeg',
       '.flac': 'audio/flac',
@@ -132,29 +150,40 @@ function setupProtocols() {
       '.opus': 'audio/opus',
       '.m4a': 'audio/mp4',
       '.aac': 'audio/aac',
+      '.webm': 'audio/webm',
+      '.wma': 'audio/x-ms-wma',
+      '.aiff': 'audio/aiff',
+      '.ape': 'audio/ape',
     };
     const contentType = mimeTypes[ext] || 'application/octet-stream';
 
-    // Handle HTTP Range header for instant seeking
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+      'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
+    };
+
+    // 3. Handle HTTP Range header for instant seeking
     if (rangeHeader) {
       const parts = rangeHeader.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+      if (start >= fileSize) {
+        return new Response(null, {
+          status: 416,
+          headers: {
+            'Content-Range': `bytes */${fileSize}`,
+            ...corsHeaders,
+          },
+        });
+      }
+
       const chunkSize = end - start + 1;
+      const fileStream = fs.createReadStream(resolvedPath, { start, end });
 
-      const fileStream = fs.createReadStream(filePath, { start, end });
-      const stream = new ReadableStream({
-        start(controller) {
-          fileStream.on('data', (chunk) => controller.enqueue(chunk));
-          fileStream.on('end', () => controller.close());
-          fileStream.on('error', (err) => controller.error(err));
-        },
-        cancel() {
-          fileStream.destroy();
-        },
-      });
-
-      return new Response(stream, {
+      return new Response(fileStream as any, {
         status: 206,
         statusText: 'Partial Content',
         headers: {
@@ -162,31 +191,20 @@ function setupProtocols() {
           'Accept-Ranges': 'bytes',
           'Content-Length': String(chunkSize),
           'Content-Type': contentType,
-          'Access-Control-Allow-Origin': '*',
+          ...corsHeaders,
         },
       });
     }
 
-    // Full file stream
-    const fileStream = fs.createReadStream(filePath);
-    const stream = new ReadableStream({
-      start(controller) {
-        fileStream.on('data', (chunk) => controller.enqueue(chunk));
-        fileStream.on('end', () => controller.close());
-        fileStream.on('error', (err) => controller.error(err));
-      },
-      cancel() {
-        fileStream.destroy();
-      },
-    });
-
-    return new Response(stream, {
+    // 4. Full file stream
+    const fileStream = fs.createReadStream(resolvedPath);
+    return new Response(fileStream as any, {
       status: 200,
       headers: {
         'Accept-Ranges': 'bytes',
         'Content-Length': String(fileSize),
         'Content-Type': contentType,
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders,
       },
     });
   });
@@ -279,6 +297,70 @@ function setupIpc() {
       ],
     });
     return res.canceled ? null : res.filePaths;
+  });
+
+  // Recursive directory scanner for audio files
+  ipcMain.handle('fs-scan-directory', async (_, rootPath: string) => {
+    const results: Array<{
+      name: string;
+      relPath: string;
+      fullPath: string;
+      size: number;
+      lastModified: number;
+    }> = [];
+
+    const audioExts = new Set([
+      '.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a', '.aac', '.webm', '.wma', '.aiff', '.ape',
+    ]);
+
+    async function scanDir(currentDir: string, relPrefix = '') {
+      try {
+        const entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
+        for (const entry of entries) {
+          const entryPath = path.join(currentDir, entry.name);
+          const relPath = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+          if (entry.isDirectory()) {
+            await scanDir(entryPath, relPath);
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (audioExts.has(ext)) {
+              try {
+                const stat = await fs.promises.stat(entryPath);
+                results.push({
+                  name: entry.name,
+                  relPath: relPath.replace(/\\/g, '/'),
+                  fullPath: entryPath.replace(/\\/g, '/'),
+                  size: stat.size,
+                  lastModified: stat.mtimeMs,
+                });
+              } catch {}
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to scan directory:', currentDir, err);
+      }
+    }
+
+    await scanDir(path.resolve(rootPath));
+    return results;
+  });
+
+  ipcMain.handle('fs-read-file', async (_, filePath: string) => {
+    return fs.promises.readFile(path.resolve(filePath));
+  });
+
+  ipcMain.handle('fs-read-text', async (_, filePath: string) => {
+    try {
+      return await fs.promises.readFile(path.resolve(filePath), 'utf-8');
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.handle('fs-show-in-folder', async (_, filePath: string) => {
+    const { shell } = await import('electron');
+    shell.showItemInFolder(path.resolve(filePath));
   });
 }
 

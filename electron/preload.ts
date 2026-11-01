@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+export interface ScannedFileItem {
+  name: string;
+  relPath: string;
+  fullPath: string;
+  size: number;
+  lastModified: number;
+}
+
 export interface ElectronSonaraBridge {
   isElectron: boolean;
   platform: string;
@@ -13,6 +21,12 @@ export interface ElectronSonaraBridge {
   dialog: {
     selectFolders: () => Promise<string[] | null>;
     selectFiles: () => Promise<string[] | null>;
+  };
+  fs: {
+    scanDirectory: (dirPath: string) => Promise<ScannedFileItem[]>;
+    readFile: (filePath: string) => Promise<Uint8Array>;
+    readText: (filePath: string) => Promise<string | null>;
+    showInFolder: (filePath: string) => Promise<void>;
   };
   media: {
     onCommand: (callback: (command: 'toggle-play' | 'next' | 'previous') => void) => () => void;
@@ -38,6 +52,12 @@ const bridge: ElectronSonaraBridge = {
     selectFolders: () => ipcRenderer.invoke('dialog-open-directories'),
     selectFiles: () => ipcRenderer.invoke('dialog-open-files'),
   },
+  fs: {
+    scanDirectory: (dirPath: string) => ipcRenderer.invoke('fs-scan-directory', dirPath),
+    readFile: (filePath: string) => ipcRenderer.invoke('fs-read-file', filePath),
+    readText: (filePath: string) => ipcRenderer.invoke('fs-read-text', filePath),
+    showInFolder: (filePath: string) => ipcRenderer.invoke('fs-show-in-folder', filePath),
+  },
   media: {
     onCommand: (callback) => {
       const listener = (_: unknown, cmd: 'toggle-play' | 'next' | 'previous') => callback(cmd);
@@ -51,4 +71,6 @@ const bridge: ElectronSonaraBridge = {
   },
 };
 
+// Expose under both names for complete compatibility
 contextBridge.exposeInMainWorld('sonara', bridge);
+contextBridge.exposeInMainWorld('electronAPI', bridge);

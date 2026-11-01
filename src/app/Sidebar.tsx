@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   useMemo,
+  useEffect,
 } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -19,8 +20,12 @@ import {
   MusicNotes,
   FileText,
   Playlist as PlaylistIcon,
+  User,
 } from '@phosphor-icons/react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { db } from '@/db/schema';
+import type { Source } from '@/db/types';
+import { Cover } from '@/components/ui/Cover';
 import { useUIStore, usePlayerStore, useLibraryStore } from './stores';
 import { usePlaylistStore } from '@/features/playlists/playlistStore';
 import { useLikesStore } from '@/features/likes/likesStore';
@@ -51,6 +56,38 @@ export const Sidebar: FC = () => {
   const currentContext = useQueueStore((s) => s.context);
   const isAudioPlaying = usePlayerStore((s) => s.isPlaying);
   const totalTracks = useLibraryStore((s) => s.totalTracks);
+  const albumsMap = useLibraryStore((s) => s.albums);
+  const artistsMap = useLibraryStore((s) => s.artists);
+
+  const [sources, setSources] = useState<Source[]>([]);
+
+  const loadSourcesList = useCallback(() => {
+    void db.sources.toArray().then((list) => {
+      setSources(list.filter((s) => !s.id.startsWith('demo-') && !s.name.toLowerCase().includes('demo music')));
+    });
+  }, []);
+
+  useEffect(() => {
+    loadSourcesList();
+  }, [totalTracks, loadSourcesList]);
+
+  const albumsList = useMemo(() => {
+    let list = Array.from(albumsMap.values());
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((a) => a.album.toLowerCase().includes(q) || a.albumArtist.toLowerCase().includes(q));
+    }
+    return list;
+  }, [albumsMap, searchQuery]);
+
+  const artistsList = useMemo(() => {
+    let list = Array.from(artistsMap.values());
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((a) => a.name.toLowerCase().includes(q));
+    }
+    return list;
+  }, [artistsMap, searchQuery]);
 
   const filteredPlaylists = useMemo(() => {
     let list = Array.from(playlistsMap.values());
@@ -509,6 +546,87 @@ export const Sidebar: FC = () => {
               />
             );
           })}
+
+        {/* Folders view */}
+        {(!filterActive || filterActive === 'folders') &&
+          sources.map((src) => (
+            <SidebarItem
+              key={`src-${src.id}`}
+              icon={
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 'var(--radius-thumb)',
+                    backgroundColor: 'var(--bg-card)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--accent)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Folder size={24} weight="fill" />
+                </div>
+              }
+              title={src.name}
+              subtitle={`Folder • ${src.path || 'Local folder'}`}
+              isActive={location.pathname === '/folders' && location.search.includes(src.id)}
+              isCollapsed={isCollapsed}
+              onClick={() => navigate(`/folders?id=${src.id}`)}
+            />
+          ))}
+
+        {/* Albums filter view */}
+        {filterActive === 'albums' &&
+          albumsList.map((album) => (
+            <SidebarItem
+              key={album.key}
+              icon={
+                <Cover
+                  artworkId={album.artworkId}
+                  title={album.album}
+                  size={48}
+                  rounded
+                />
+              }
+              title={album.album}
+              subtitle={`Album • ${album.albumArtist}`}
+              isActive={location.pathname === `/album/${encodeURIComponent(album.key)}`}
+              isCollapsed={isCollapsed}
+              onClick={() => navigate(`/album/${encodeURIComponent(album.key)}`)}
+            />
+          ))}
+
+        {/* Artists filter view */}
+        {filterActive === 'artists' &&
+          artistsList.map((artist) => (
+            <SidebarItem
+              key={artist.name}
+              icon={
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--bg-elevated)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--text-sub)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <User size={24} />
+                </div>
+              }
+              title={artist.name}
+              subtitle={`Artist • ${artist.trackCount} ${artist.trackCount === 1 ? 'song' : 'songs'}`}
+              isActive={location.pathname === `/artist/${encodeURIComponent(artist.name)}`}
+              isCollapsed={isCollapsed}
+              onClick={() => navigate(`/artist/${encodeURIComponent(artist.name)}`)}
+            />
+          ))}
 
         {/* Empty state if no playlists and no songs */}
         {!isCollapsed && totalTracks === 0 && playlistsMap.size === 0 && (

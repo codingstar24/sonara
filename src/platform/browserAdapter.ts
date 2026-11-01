@@ -13,6 +13,8 @@ export class BrowserAdapter implements PlatformAdapter {
   private supportsFileSystemAccess =
     typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 
+  private fallbackFiles: File[] = [];
+
   async pickFiles(): Promise<SourceRef[]> {
     if (this.supportsFileSystemAccess) {
       try {
@@ -91,6 +93,7 @@ export class BrowserAdapter implements PlatformAdapter {
           resolve(null);
           return;
         }
+        this.fallbackFiles = files;
         const firstPath = files[0]?.webkitRelativePath ?? '';
         const folderName = firstPath.split('/')[0] ?? 'Folder';
         resolve({
@@ -109,6 +112,24 @@ export class BrowserAdapter implements PlatformAdapter {
         '',
         signal
       );
+    } else if (this.fallbackFiles.length > 0) {
+      const files = [...this.fallbackFiles];
+      for (const file of files) {
+        if (signal.aborted) return;
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+        if (AUDIO_EXTENSIONS.has(ext)) {
+          const relPath = file.webkitRelativePath
+            ? file.webkitRelativePath.split('/').slice(1).join('/') || file.name
+            : file.name;
+          yield {
+            name: file.name,
+            relPath,
+            size: file.size,
+            lastModified: file.lastModified,
+            file,
+          };
+        }
+      }
     }
   }
 
@@ -179,6 +200,21 @@ export class BrowserAdapter implements PlatformAdapter {
         return { url, dispose: () => URL.revokeObjectURL(url) };
       }
     }
+
+    // Check fallback files if handle is unavailable
+    if (this.fallbackFiles.length > 0) {
+      const match = this.fallbackFiles.find(
+        (f) =>
+          f.name === track.title ||
+          f.name.includes(track.title) ||
+          f.webkitRelativePath.endsWith(track.relPath)
+      );
+      if (match) {
+        const url = URL.createObjectURL(match);
+        return { url, dispose: () => URL.revokeObjectURL(url) };
+      }
+    }
+
     throw new Error(`Cannot get playable URL for track: ${track.title}`);
   }
 

@@ -71,6 +71,7 @@ export const RightPanel: FC = () => {
         flexDirection: 'column',
         overflow: 'hidden',
         position: 'relative',
+        flexShrink: 0,
       }}
     >
       {/* Header */}

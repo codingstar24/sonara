@@ -21,13 +21,10 @@ import {
   ChartBar,
   Gear,
   FirstAid,
-  Sparkle,
 } from '@phosphor-icons/react';
 import { usePlayerStore, useLibraryStore, useUIStore } from '@/app/stores';
 import { useQueueStore } from '@/features/queue/queueStore';
 import { useLikesStore } from '@/features/likes/likesStore';
-import { seedDemoData } from '@/recommendation/seedDemo';
-import { toast } from 'sonner';
 
 export const CommandPalette: FC = () => {
   const [open, setOpen] = useState(false);
@@ -601,40 +598,6 @@ export const CommandPalette: FC = () => {
               </Command.Item>
             </Command.Group>
 
-            {/* Quick Demo Seed */}
-            <Command.Group
-              heading="Developer & Demo"
-              style={{
-                fontSize: '11px',
-                fontWeight: 'var(--font-bold)',
-                color: 'var(--text-sub)',
-                padding: '6px 10px',
-                textTransform: 'uppercase',
-              }}
-            >
-              <Command.Item
-                onSelect={() =>
-                  runCommand(() => {
-                    toast.info('Seeding demo library with 400 tracks...');
-                    void seedDemoData().then(() => toast.success('Demo library loaded!'));
-                  })
-                }
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  color: 'var(--text)',
-                  fontSize: '14px',
-                }}
-                className="hover:bg-[var(--bg-card-hover)] aria-selected:bg-[var(--bg-card-hover)]"
-              >
-                <Sparkle size={16} color="var(--accent)" />
-                <span>Load Demo Library (400 tracks + 90 days history)</span>
-              </Command.Item>
-            </Command.Group>
           </Command.List>
         </Command>
       </div>

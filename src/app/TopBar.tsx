@@ -10,6 +10,7 @@ import {
   Gear,
 } from '@phosphor-icons/react';
 import { SEARCH_DEBOUNCE_MS } from '@/config/app';
+import { isElectron } from '@/platform';
 
 export const TopBar: FC = () => {
   const navigate = useNavigate();
@@ -207,7 +208,7 @@ export const TopBar: FC = () => {
           alignItems: 'center',
           gap: '4px',
           marginInlineStart: 'auto',
-          paddingInlineEnd: 'var(--titlebar-right-inset)',
+          paddingInlineEnd: isElectron() ? 150 : 16,
         }}
       >
         <button
