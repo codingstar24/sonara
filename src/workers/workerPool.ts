@@ -32,9 +32,22 @@ export class WorkerPool {
   }
 
   private initPool() {
+    const isElectronOrFile =
+      typeof window !== 'undefined' &&
+      (Boolean((window as any).sonara) ||
+        Boolean((window as any).electronAPI) ||
+        window.location.protocol === 'file:' ||
+        navigator.userAgent.includes('Electron'));
+
+    if (isElectronOrFile) {
+      // In Electron or file:// protocol, Web Workers with type: 'module' are blocked by Chromium
+      // file:// security policies. Use high-speed in-thread direct parsing instead.
+      this.workers = [];
+      this.idleWorkers = [];
+      return;
+    }
+
     try {
-      // In Electron production (file:// protocol), module Web Workers are blocked by CORS.
-      // If window.sonara or window.electronAPI is present, check or allow fallback.
       for (let i = 0; i < this.poolSize; i++) {
         const worker = new Worker(
           new URL('./import.worker.ts', import.meta.url),
@@ -54,14 +67,19 @@ export class WorkerPool {
         };
 
         worker.onerror = (err) => {
-          console.warn('Worker encountered error, resolving pending tasks via direct parser:', err);
-          // Fall back all pending tasks assigned to this worker or queued
+          console.warn('Worker encountered error, disabling worker and using direct parser:', err);
+          try {
+            worker.terminate();
+          } catch {}
+          this.workers = this.workers.filter((w) => w !== worker);
+          this.idleWorkers = this.idleWorkers.filter((w) => w !== worker);
+
+          // Fall back all pending tasks assigned to this worker
           for (const [taskId, entry] of Array.from(this.activeTasks.entries())) {
             clearTimeout(entry.timer);
             this.activeTasks.delete(taskId);
             void parseTrackDirect(entry.req).then(entry.resolve);
           }
-          this.idleWorkers.push(worker);
           this.processNext();
         };
 

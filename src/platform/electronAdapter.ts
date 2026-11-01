@@ -77,8 +77,14 @@ export class ElectronAdapter implements PlatformAdapter {
     const folderPaths = await bridge.dialog.selectFolders();
     if (!folderPaths || folderPaths.length === 0) return null;
 
-    const normalized = folderPaths[0]!.replace(/\\/g, '/');
-    const name = normalized.split('/').filter(Boolean).pop() || 'Music';
+    let normalized = folderPaths[0]!.replace(/\\/g, '/');
+    if (/^[a-zA-Z]:$/.test(normalized)) {
+      normalized += '/';
+    }
+    let name = normalized.split('/').filter(Boolean).pop() || 'Music';
+    if (/^[a-zA-Z]:$/.test(name)) {
+      name = `Drive (${name})`;
+    }
 
     return {
       kind: 'path',

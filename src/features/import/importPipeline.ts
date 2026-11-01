@@ -26,7 +26,12 @@ export class ImportPipeline {
     // Check if source already exists with this path
     let source: Source | undefined;
     if (sourceRef.path) {
-      source = await db.sources.where('path').equals(sourceRef.path).first();
+      const cleanPath = sourceRef.path.replace(/\\/g, '/');
+      source = await db.sources.where('path').equals(cleanPath).first();
+      if (!source) {
+        const alt = cleanPath.endsWith('/') ? cleanPath.slice(0, -1) : `${cleanPath}/`;
+        source = await db.sources.where('path').equals(alt).first();
+      }
     }
 
     if (!source) {
@@ -36,7 +41,7 @@ export class ImportPipeline {
         kind: sourceRef.kind,
         name: sourceRef.name,
         handle: sourceRef.handle,
-        path: sourceRef.path,
+        path: sourceRef.path ? sourceRef.path.replace(/\\/g, '/') : undefined,
         addedAt: Date.now(),
         lastScanAt: Date.now(),
         autoScan: true,
@@ -71,6 +76,10 @@ export class ImportPipeline {
     const folderName = normalized.split('/').filter(Boolean).pop() || 'Music Folder';
 
     let source = await db.sources.where('path').equals(normalized).first();
+    if (!source) {
+      const alt = normalized.endsWith('/') ? normalized.slice(0, -1) : `${normalized}/`;
+      source = await db.sources.where('path').equals(alt).first();
+    }
     if (!source) {
       const sourceId = `src_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       source = {
@@ -228,6 +237,7 @@ export class ImportPipeline {
           await db.artwork.bulkPut(artworkBatch);
         }
         useLibraryStore.getState().addTracks(liteBatch);
+        await useLibraryStore.getState().hydrate(true);
         useLibraryStore.getState().rebuildDerived();
         await usePlaylistStore.getState().hydrate();
       }
@@ -394,7 +404,7 @@ export class ImportPipeline {
       }
 
       await flushBatch();
-      await useLibraryStore.getState().hydrate();
+      await useLibraryStore.getState().hydrate(true);
       useLibraryStore.getState().rebuildDerived();
 
       // Create or update playlists from folders (always on by default)

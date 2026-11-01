@@ -247,7 +247,7 @@ export const Sidebar: FC = () => {
                       Create playlist
                     </DropdownMenu.Item>
                     <DropdownMenu.Item
-                      onClick={() => setImportModalOpen(true)}
+                      onSelect={() => setImportModalOpen(true)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -264,7 +264,7 @@ export const Sidebar: FC = () => {
                       Add folder...
                     </DropdownMenu.Item>
                     <DropdownMenu.Item
-                      onClick={() => void importPipeline.importFiles()}
+                      onSelect={() => void importPipeline.importFiles()}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -281,7 +281,7 @@ export const Sidebar: FC = () => {
                       Add files...
                     </DropdownMenu.Item>
                     <DropdownMenu.Item
-                      onClick={() => {
+                      onSelect={() => {
                         const input = document.createElement('input');
                         input.type = 'file';
                         input.accept = '.m3u,.m3u8,.pls';

@@ -321,6 +321,18 @@ function setupIpc() {
     return res.canceled ? null : res.filePaths;
   });
 
+  // Helper to normalize and resolve Windows & Unix paths
+  function sanitizePath(p: string): string {
+    let cleaned = p.trim().replace(/^["']|["']$/g, '');
+    if (process.platform === 'win32') {
+      cleaned = cleaned.replace(/^\/+([a-zA-Z]:)/, '$1');
+      if (/^[a-zA-Z]:$/.test(cleaned)) {
+        cleaned += '\\';
+      }
+    }
+    return path.resolve(cleaned);
+  }
+
   // Recursive directory scanner for audio files
   ipcMain.handle('fs-scan-directory', async (_, rootPath: string) => {
     const results: Array<{
@@ -340,11 +352,36 @@ function setupIpc() {
       try {
         const entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
         for (const entry of entries) {
+          // Skip system/hidden folders and files
+          if (
+            entry.name.startsWith('.') ||
+            entry.name.startsWith('$') ||
+            entry.name === 'System Volume Information' ||
+            entry.name.toLowerCase() === '$recycle.bin'
+          ) {
+            continue;
+          }
+
           const entryPath = path.join(currentDir, entry.name);
           const relPath = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
-          if (entry.isDirectory()) {
+
+          let isDirectory = entry.isDirectory();
+          let isFile = entry.isFile();
+
+          // In Windows, user folders (e.g. C:\Users\<user>\Music) or junction points have isSymbolicLink() === true
+          if (entry.isSymbolicLink()) {
+            try {
+              const stat = await fs.promises.stat(entryPath);
+              isDirectory = stat.isDirectory();
+              isFile = stat.isFile();
+            } catch {
+              continue;
+            }
+          }
+
+          if (isDirectory) {
             await scanDir(entryPath, relPath);
-          } else if (entry.isFile()) {
+          } else if (isFile) {
             const ext = path.extname(entry.name).toLowerCase();
             if (audioExts.has(ext)) {
               try {
@@ -365,15 +402,14 @@ function setupIpc() {
       }
     }
 
-    const cleanedRoot = rootPath.trim().replace(/^["']|["']$/g, '');
-    await scanDir(path.resolve(cleanedRoot));
+    const resolvedRoot = sanitizePath(rootPath);
+    await scanDir(resolvedRoot);
     return results;
   });
 
   ipcMain.handle('fs-dir-exists', async (_, dirPath: string) => {
     try {
-      const cleaned = dirPath.trim().replace(/^["']|["']$/g, '');
-      const resolved = path.resolve(cleaned);
+      const resolved = sanitizePath(dirPath);
       const stat = await fs.promises.stat(resolved);
       return stat.isDirectory();
     } catch {
@@ -382,12 +418,12 @@ function setupIpc() {
   });
 
   ipcMain.handle('fs-read-file', async (_, filePath: string) => {
-    return fs.promises.readFile(path.resolve(filePath));
+    return fs.promises.readFile(sanitizePath(filePath));
   });
 
   ipcMain.handle('fs-read-text', async (_, filePath: string) => {
     try {
-      return await fs.promises.readFile(path.resolve(filePath), 'utf-8');
+      return await fs.promises.readFile(sanitizePath(filePath), 'utf-8');
     } catch {
       return null;
     }
@@ -395,7 +431,7 @@ function setupIpc() {
 
   ipcMain.handle('fs-show-in-folder', async (_, filePath: string) => {
     const { shell } = await import('electron');
-    shell.showItemInFolder(path.resolve(filePath));
+    shell.showItemInFolder(sanitizePath(filePath));
   });
 }
 

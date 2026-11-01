@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { TrackRow } from '@/components/ui/TrackRow';
 import { TrackContextMenu } from '@/components/ui/TrackContextMenu';
 import { ImportModal } from '@/features/import/ImportModal';
+import { useImportStore } from '@/features/import/useImportStore';
 import { toast } from 'sonner';
 
 export const FoldersPage: FC = () => {
@@ -48,13 +49,15 @@ export const FoldersPage: FC = () => {
     }
   };
 
+  const isImportActive = useImportStore((s) => s.active);
+
   useEffect(() => {
     void loadSources();
   }, []);
 
   useEffect(() => {
     void loadSources();
-  }, [tracksMap.size, folderParamId]);
+  }, [tracksMap.size, folderParamId, isImportActive]);
 
   // Group tracks by source
   const sourceTracks = useMemo(() => {

@@ -160,7 +160,7 @@ interface LibraryState {
   artists: Map<string, DerivedArtist>;
 
   // Actions
-  hydrate: () => Promise<void>;
+  hydrate: (force?: boolean) => Promise<void>;
   addTrack: (track: TrackLite) => void;
   addTracks: (tracks: TrackLite[]) => void;
   removeTrack: (id: string) => void;
@@ -178,8 +178,8 @@ export const useLibraryStore = create<LibraryState>()(
     albums: new Map(),
     artists: new Map(),
 
-    async hydrate() {
-      if (get().loading || get().loaded) return;
+    async hydrate(force = false) {
+      if (get().loading || (!force && get().loaded)) return;
       set({ loading: true });
 
       const CHUNK_SIZE = 500;
