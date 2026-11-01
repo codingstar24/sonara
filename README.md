@@ -6,11 +6,11 @@
 
   ### The Spotify-Grade, 100% Offline & Privacy-First Local Music Player
 
-  [![Windows](https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com)
-  [![Version](https://img.shields.io/badge/Release-v1.0.0-1ED760?style=for-the-badge)](https://github.com)
+  [![Windows](https://img.shields.io/badge/Platform-Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/codingstar24/sonara/releases/latest)
+  [![Version](https://img.shields.io/badge/Release-v1.0.0-1ED760?style=for-the-badge)](https://github.com/codingstar24/sonara/releases/tag/v1.0.0)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
-  [![Tests](https://img.shields.io/badge/Tests-62%20Passing-brightgreen?style=for-the-badge&logo=vitest&logoColor=white)](https://github.com)
-  [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Offline-blueviolet?style=for-the-badge&logo=signal&logoColor=white)](https://github.com)
+  [![Tests](https://img.shields.io/badge/Tests-62%20Passing-brightgreen?style=for-the-badge&logo=vitest&logoColor=white)](https://github.com/codingstar24/sonara/actions)
+  [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Offline-blueviolet?style=for-the-badge&logo=signal&logoColor=white)](https://github.com/codingstar24/sonara)
 
   <br/>
 
@@ -19,7 +19,7 @@
   </p>
 
   <p align="center">
-    <a href="https://github.com/releases/latest">
+    <a href="https://github.com/codingstar24/sonara/releases/latest">
       <img src="https://img.shields.io/badge/⚡%20Download%20for%20Windows-Setup%20v1.0.0%20(.exe)-1ED760?style=for-the-badge&logo=windows&logoColor=white" height="40" alt="Download Sonara Setup .exe"/>
     </a>
   </p>
@@ -81,7 +81,7 @@ graph TD
 ## ⚡ Quick Download & Installation
 
 ### Option 1: Standalone Windows Installer (Recommended)
-1. Head over to the [**Releases**](https://github.com/releases/latest) section.
+1. Head over to the [**Releases**](https://github.com/codingstar24/sonara/releases/latest) section.
 2. Download **`Sonara Setup 1.0.0.exe`**.
 3. Run the setup installer and launch **Sonara** from your Desktop or Start Menu.
 
@@ -93,7 +93,7 @@ graph TD
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/<your-username>/sonara.git
+git clone https://github.com/codingstar24/sonara.git
 cd sonara
 
 # 2. Install dependencies
