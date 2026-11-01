@@ -33,6 +33,7 @@ import { useLikesStore } from '@/features/likes/likesStore';
 import { usePlaylistStore } from '@/features/playlists/playlistStore';
 import { FullscreenModal } from '@/features/player/FullscreenModal';
 import { EqualizerModal } from '@/features/audio/EqualizerModal';
+import { CommandPalette } from '@/components/ui/CommandPalette';
 
 export const App: FC = () => {
   useKeyboardShortcuts();
@@ -233,6 +234,7 @@ export const App: FC = () => {
         {/* Immersive Modals */}
         <FullscreenModal isOpen={fullscreenOpen} onClose={() => setFullscreenOpen(false)} />
         <EqualizerModal isOpen={equalizerOpen} onClose={() => setEqualizerOpen(false)} />
+        <CommandPalette />
       </div>
     </TooltipProvider>
   );
