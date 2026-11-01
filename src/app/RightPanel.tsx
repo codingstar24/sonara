@@ -135,9 +135,9 @@ export const RightPanel: FC = () => {
           padding: '0 16px 16px',
         }}
       >
-        {rightPanelMode === 'now-playing' && <NowPlayingContent />}
+        {rightPanelMode === 'now-playing' && <NowPlayingPanel />}
         {rightPanelMode === 'queue' && <QueuePanel />}
-        {rightPanelMode === 'lyrics' && <LyricsContent />}
+        {rightPanelMode === 'lyrics' && <LyricsViewer />}
       </div>
 
       {/* Resize handle (left edge) */}
@@ -164,56 +164,5 @@ export const RightPanel: FC = () => {
   );
 };
 
-// --- Panel content components ---
-
-const NowPlayingContent: FC = () => {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '16px',
-        textAlign: 'center',
-      }}
-    >
-      {/* Large cover placeholder */}
-      <div
-        style={{
-          width: '100%',
-          aspectRatio: '1',
-          borderRadius: 'var(--radius-card)',
-          background: 'var(--bg-card)',
-        }}
-      />
-      <div style={{ color: 'var(--text-sub)', fontSize: 'var(--text-body)' }}>
-        <p>No track playing</p>
-        <p style={{ fontSize: 'var(--text-caption)', marginTop: 4 }}>
-          Play something from your library
-        </p>
-      </div>
-    </div>
-  );
-};
-
-
-const LyricsContent: FC = () => {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '48px 16px',
-        textAlign: 'center',
-      }}
-    >
-      <MicrophoneStage size={48} style={{ color: 'var(--text-faint)', marginBottom: 16 }} />
-      <p style={{ fontWeight: 'var(--font-title)' }}>No lyrics available</p>
-      <p style={{ color: 'var(--text-sub)', fontSize: 'var(--text-caption)', marginTop: 4 }}>
-        Play a song with lyrics to see them here
-      </p>
-    </div>
-  );
-};
+import { NowPlayingPanel } from '@/features/player/NowPlayingPanel';
+import { LyricsViewer } from '@/features/lyrics/LyricsViewer';

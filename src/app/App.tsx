@@ -31,6 +31,8 @@ import { useKeyboardShortcuts } from '@/features/player/useKeyboardShortcuts';
 import { useQueueStore } from '@/features/queue/queueStore';
 import { useLikesStore } from '@/features/likes/likesStore';
 import { usePlaylistStore } from '@/features/playlists/playlistStore';
+import { FullscreenModal } from '@/features/player/FullscreenModal';
+import { EqualizerModal } from '@/features/audio/EqualizerModal';
 
 export const App: FC = () => {
   useKeyboardShortcuts();
@@ -41,6 +43,10 @@ export const App: FC = () => {
   const dragOver = useUIStore((s) => s.dragOver);
   const setDragOver = useUIStore((s) => s.setDragOver);
   const setWindowWidth = useUIStore((s) => s.setWindowWidth);
+  const fullscreenOpen = useUIStore((s) => s.fullscreenOpen);
+  const setFullscreenOpen = useUIStore((s) => s.setFullscreenOpen);
+  const equalizerOpen = useUIStore((s) => s.equalizerOpen);
+  const setEqualizerOpen = useUIStore((s) => s.setEqualizerOpen);
 
   // Initialize settings, library hydration, persisted queue, and resize listeners
   useEffect(() => {
@@ -223,6 +229,10 @@ export const App: FC = () => {
         <ImportProgressBar />
         {/* Global Toast notifications */}
         <Toaster theme="dark" position="bottom-center" />
+
+        {/* Immersive Modals */}
+        <FullscreenModal isOpen={fullscreenOpen} onClose={() => setFullscreenOpen(false)} />
+        <EqualizerModal isOpen={equalizerOpen} onClose={() => setEqualizerOpen(false)} />
       </div>
     </TooltipProvider>
   );

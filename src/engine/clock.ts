@@ -27,6 +27,10 @@ export class PlaybackClock {
     this.emit();
   }
 
+  public getCurrentTime(): number {
+    return this.currentTime;
+  }
+
   public getSnapshot(): ClockSnapshot {
     return {
       currentTime: this.currentTime,

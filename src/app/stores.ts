@@ -86,10 +86,20 @@ interface UIState {
   // Window width tracking
   windowWidth: number;
   setWindowWidth: (w: number) => void;
+
+  // Immersive & Audio Modals
+  fullscreenOpen: boolean;
+  setFullscreenOpen: (open: boolean) => void;
+  equalizerOpen: boolean;
+  setEqualizerOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
   subscribeWithSelector((set, get) => ({
+    fullscreenOpen: false,
+    setFullscreenOpen: (open) => set({ fullscreenOpen: open }),
+    equalizerOpen: false,
+    setEqualizerOpen: (open) => set({ equalizerOpen: open }),
     sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
     sidebarCollapsed: false,
     sidebarResizing: false,

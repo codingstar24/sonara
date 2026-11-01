@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQueueStore } from '@/features/queue/queueStore';
 import { audioEngine } from '@/engine/audioEngine';
 import { usePlayerStore, useUIStore } from '@/app/stores';
+import { useLikesStore } from '@/features/likes/likesStore';
 
 export function useKeyboardShortcuts() {
   const navigate = useNavigate();
@@ -118,6 +119,32 @@ export function useKeyboardShortcuts() {
       if (!isCtrlOrCmd && (e.key === 'y' || e.key === 'Y')) {
         e.preventDefault();
         useUIStore.getState().toggleRightPanel('lyrics');
+        return;
+      }
+
+      // F: Toggle Fullscreen
+      if (!isCtrlOrCmd && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        const current = useUIStore.getState().fullscreenOpen;
+        useUIStore.getState().setFullscreenOpen(!current);
+        return;
+      }
+
+      // E: Toggle Equalizer
+      if (!isCtrlOrCmd && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        const current = useUIStore.getState().equalizerOpen;
+        useUIStore.getState().setEqualizerOpen(!current);
+        return;
+      }
+
+      // L: Toggle Like
+      if (!isCtrlOrCmd && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        const trackId = usePlayerStore.getState().currentTrackId;
+        if (trackId) {
+          void useLikesStore.getState().toggleLike(trackId);
+        }
         return;
       }
 

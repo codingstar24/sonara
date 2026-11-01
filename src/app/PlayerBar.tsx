@@ -24,7 +24,6 @@ import { playbackClock, type ClockSnapshot } from '@/engine/clock';
 import { Cover } from '@/components/ui/Cover';
 import { SleepTimerPopover } from '@/features/player/SleepTimerPopover';
 import { formatTime } from '@/lib/formatters';
-import { toast } from 'sonner';
 
 // ============================================================
 // Progress/Seek Bar (rAF-driven, does NOT re-render the app)
@@ -331,6 +330,8 @@ export const PlayerBar: FC = () => {
   const rightPanelOpen = useUIStore((s) => s.rightPanelOpen);
   const rightPanelMode = useUIStore((s) => s.rightPanelMode);
   const toggleRightPanel = useUIStore((s) => s.toggleRightPanel);
+  const setFullscreenOpen = useUIStore((s) => s.setFullscreenOpen);
+  const setEqualizerOpen = useUIStore((s) => s.setEqualizerOpen);
 
   const track = useLibraryStore((s) =>
     currentTrackId ? s.tracks.get(currentTrackId) : null
@@ -602,7 +603,7 @@ export const PlayerBar: FC = () => {
 
         {/* Equalizer */}
         <button
-          onClick={() => toast.info('Equalizer available in Phase 6')}
+          onClick={() => setEqualizerOpen(true)}
           aria-label="Equalizer"
           style={{
             background: 'transparent',
@@ -611,19 +612,14 @@ export const PlayerBar: FC = () => {
             cursor: 'pointer',
             padding: 4,
           }}
+          className="hover:text-white"
         >
           <Equalizer size={18} />
         </button>
 
         {/* Fullscreen */}
         <button
-          onClick={() => {
-            if (!document.fullscreenElement) {
-              void document.documentElement.requestFullscreen();
-            } else {
-              void document.exitFullscreen();
-            }
-          }}
+          onClick={() => setFullscreenOpen(true)}
           aria-label="Full screen"
           style={{
             background: 'transparent',
@@ -632,6 +628,7 @@ export const PlayerBar: FC = () => {
             cursor: 'pointer',
             padding: 4,
           }}
+          className="hover:text-white"
         >
           <CornersOut size={18} />
         </button>
