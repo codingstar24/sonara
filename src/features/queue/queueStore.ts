@@ -22,6 +22,7 @@ import { audioEngine } from '@/engine/audioEngine';
 import { mediaSessionManager } from '@/engine/mediaSession';
 import { sleepTimerManager } from '@/features/player/sleepTimer';
 import { usePlayerStore, useLibraryStore } from '@/app/stores';
+import { safeBlobUrl } from '@/lib/blobUrl';
 
 interface QueueStoreState extends FullQueueState {
   loaded: boolean;
@@ -362,9 +363,7 @@ async function loadAndPlayTrack(trackId: string): Promise<void> {
   let artworkUrl: string | undefined;
   if (track.artworkId) {
     const art = await db.artwork.get(track.artworkId);
-    if (art?.full) {
-      artworkUrl = URL.createObjectURL(art.full);
-    }
+    artworkUrl = safeBlobUrl(art?.full) || undefined;
   }
 
   mediaSessionManager.updateMetadata(track, artworkUrl);

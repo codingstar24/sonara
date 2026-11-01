@@ -142,7 +142,7 @@ export class ElectronAdapter implements PlatformAdapter {
 
     const url = bridge
       ? bridge.media.toMediaUrl(fullPath)
-      : `local-media://${fullPath.startsWith('/') ? fullPath : `/${fullPath}`}`;
+      : `local-media://media/${fullPath.replace(/^\/+/, '')}`;
 
     return {
       url,

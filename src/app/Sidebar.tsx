@@ -30,6 +30,7 @@ import { useQueueStore } from '@/features/queue/queueStore';
 import { SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_COLLAPSE_THRESHOLD } from '@/config/app';
 import { importPipeline } from '@/features/import/importPipeline';
 import { ImportModal } from '@/features/import/ImportModal';
+import { safeBlobUrl } from '@/lib/blobUrl';
 
 export const Sidebar: FC = () => {
   const navigate = useNavigate();
@@ -222,9 +223,13 @@ export const Sidebar: FC = () => {
                     }}
                   >
                     <DropdownMenu.Item
-                      onClick={async () => {
-                        const newId = await usePlaylistStore.getState().createPlaylist();
-                        navigate(`/playlist/${newId}`);
+                      onSelect={async () => {
+                        try {
+                          const newId = await usePlaylistStore.getState().createPlaylist();
+                          navigate(`/playlist/${newId}`);
+                        } catch (err) {
+                          console.error('Failed to create playlist:', err);
+                        }
                       }}
                       style={{
                         display: 'flex',
@@ -471,9 +476,9 @@ export const Sidebar: FC = () => {
               <SidebarItem
                 key={pl.id}
                 icon={
-                  pl.customCover ? (
+                  safeBlobUrl(pl.customCover) ? (
                     <img
-                      src={URL.createObjectURL(pl.customCover)}
+                      src={safeBlobUrl(pl.customCover)!}
                       alt={pl.name}
                       style={{
                         width: 48,

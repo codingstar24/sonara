@@ -125,12 +125,30 @@ function setupProtocols() {
     }
 
     // 2. Decode file path cleanly
-    let raw = request.url.replace(/^local-media:\/\//i, '');
-    raw = raw.split('?')[0]!.split('#')[0]!;
-    let filePath = decodeURIComponent(raw);
-    if (process.platform === 'win32') {
-      // Remove any leading slashes before drive letter e.g. /d:/ -> d:/
-      filePath = filePath.replace(/^\/+([a-zA-Z]:)/, '$1');
+    let filePath = '';
+    try {
+      const parsed = new URL(request.url);
+      let p = decodeURIComponent(parsed.pathname);
+      if (process.platform === 'win32') {
+        if (/^[a-zA-Z]$/.test(parsed.host)) {
+          p = `${parsed.host}:${p}`;
+        }
+        p = p.replace(/^\/+([a-zA-Z]:)/, '$1');
+        if (/^[a-zA-Z]\//.test(p)) {
+          p = p[0] + ':' + p.substring(1);
+        }
+      }
+      filePath = p;
+    } catch {
+      let raw = request.url.replace(/^local-media:\/\/(media\/)?/i, '');
+      raw = raw.split('?')[0]!.split('#')[0]!;
+      filePath = decodeURIComponent(raw);
+      if (process.platform === 'win32') {
+        filePath = filePath.replace(/^\/+([a-zA-Z]:)/, '$1');
+        if (/^[a-zA-Z]\//.test(filePath)) {
+          filePath = filePath[0] + ':' + filePath.substring(1);
+        }
+      }
     }
     const resolvedPath = path.resolve(filePath);
 
@@ -315,6 +333,7 @@ function setupIpc() {
 
     const audioExts = new Set([
       '.mp3', '.flac', '.wav', '.ogg', '.opus', '.m4a', '.aac', '.webm', '.wma', '.aiff', '.ape',
+      '.alac', '.m4b', '.mp4', '.wv', '.oga',
     ]);
 
     async function scanDir(currentDir: string, relPrefix = '') {
@@ -346,13 +365,15 @@ function setupIpc() {
       }
     }
 
-    await scanDir(path.resolve(rootPath));
+    const cleanedRoot = rootPath.trim().replace(/^["']|["']$/g, '');
+    await scanDir(path.resolve(cleanedRoot));
     return results;
   });
 
   ipcMain.handle('fs-dir-exists', async (_, dirPath: string) => {
     try {
-      const resolved = path.resolve(dirPath);
+      const cleaned = dirPath.trim().replace(/^["']|["']$/g, '');
+      const resolved = path.resolve(cleaned);
       const stat = await fs.promises.stat(resolved);
       return stat.isDirectory();
     } catch {

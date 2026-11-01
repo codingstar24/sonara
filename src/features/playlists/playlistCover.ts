@@ -63,14 +63,14 @@ export async function generateCollageCover(artworkIds: string[]): Promise<Blob |
   // If only 1 artwork, return its blob
   if (distinctIds.length < 4) {
     const art = await db.artwork.get(distinctIds[0]!);
-    return art?.full ?? null;
+    return art?.full instanceof Blob ? art.full : null;
   }
 
   // Load 4 artworks
   const blobs: Blob[] = [];
   for (const artId of distinctIds) {
     const art = await db.artwork.get(artId);
-    if (art?.full) {
+    if (art?.full instanceof Blob) {
       blobs.push(art.full);
     }
   }

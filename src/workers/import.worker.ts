@@ -139,8 +139,7 @@ async function processImage(imageBlob: Blob): Promise<WorkerArtworkResult | null
   }
 }
 
-self.onmessage = async (e: MessageEvent<WorkerParseRequest>) => {
-  const req = e.data;
+export async function parseTrackDirect(req: WorkerParseRequest): Promise<WorkerParseResult> {
   const ext = req.name.split('.').pop()?.toLowerCase() ?? '';
   const isKnownUnsupported = KNOWN_UNSUPPORTED_EXTENSIONS.has(ext);
 
@@ -240,12 +239,25 @@ self.onmessage = async (e: MessageEvent<WorkerParseRequest>) => {
       artwork: artwork ?? undefined,
     };
 
-    self.postMessage(result);
+    return result;
   } catch (err: any) {
-    self.postMessage({
+    return {
       taskId: req.taskId,
       success: false,
       error: err?.message || 'Unknown parse error',
-    } as WorkerParseResult);
+    };
   }
-};
+}
+
+// In dedicated worker context, attach message handler
+if (
+  typeof window === 'undefined' &&
+  typeof self !== 'undefined' &&
+  typeof (self as any).postMessage === 'function' &&
+  typeof (self as any).importScripts === 'function'
+) {
+  self.onmessage = async (e: MessageEvent<WorkerParseRequest>) => {
+    const result = await parseTrackDirect(e.data);
+    self.postMessage(result);
+  };
+}

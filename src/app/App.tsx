@@ -34,6 +34,7 @@ import { usePlaylistStore } from '@/features/playlists/playlistStore';
 import { FullscreenModal } from '@/features/player/FullscreenModal';
 import { EqualizerModal } from '@/features/audio/EqualizerModal';
 import { CommandPalette } from '@/components/ui/CommandPalette';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { purgeAllDemoData } from '@/recommendation/purgeDemo';
 
 export const App: FC = () => {
@@ -176,22 +177,24 @@ export const App: FC = () => {
             }}
           >
             <ReconnectBanner />
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/songs" element={<SongsPage />} />
-              <Route path="/albums" element={<AlbumsPage />} />
-              <Route path="/artists" element={<ArtistsPage />} />
-              <Route path="/folders" element={<FoldersPage />} />
-              <Route path="/liked" element={<LikedPage />} />
-              <Route path="/recent" element={<RecentPage />} />
-              <Route path="/playlist/:id" element={<PlaylistPage />} />
-              <Route path="/album/:id" element={<AlbumPage />} />
-              <Route path="/artist/:id" element={<ArtistPage />} />
-              <Route path="/stats" element={<StatsPage />} />
-              <Route path="/health" element={<HealthPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-            </Routes>
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/songs" element={<SongsPage />} />
+                <Route path="/albums" element={<AlbumsPage />} />
+                <Route path="/artists" element={<ArtistsPage />} />
+                <Route path="/folders" element={<FoldersPage />} />
+                <Route path="/liked" element={<LikedPage />} />
+                <Route path="/recent" element={<RecentPage />} />
+                <Route path="/playlist/:id" element={<PlaylistPage />} />
+                <Route path="/album/:id" element={<AlbumPage />} />
+                <Route path="/artist/:id" element={<ArtistPage />} />
+                <Route path="/stats" element={<StatsPage />} />
+                <Route path="/health" element={<HealthPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+              </Routes>
+            </ErrorBoundary>
           </main>
 
           {rightPanelOpen && <RightPanel />}

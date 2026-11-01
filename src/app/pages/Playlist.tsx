@@ -51,6 +51,7 @@ import { TrackRow } from '@/components/ui/TrackRow';
 import { TrackContextMenu } from '@/components/ui/TrackContextMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { EditPlaylistModal } from '@/features/playlists/EditPlaylistModal';
+import { safeBlobUrl } from '@/lib/blobUrl';
 import type { PlaylistTrack, TrackLite, PlaylistSortMode } from '@/db/types';
 
 function formatTotalDuration(seconds: number): string {
@@ -192,6 +193,9 @@ export const PlaylistPage: FC = () => {
 
   // Generate 2x2 collage cover if no custom cover
   useEffect(() => {
+    let active = true;
+    let url: string | null = null;
+
     if (!playlist || playlist.customCover) {
       setCollageUrl(null);
       return;
@@ -203,12 +207,21 @@ export const PlaylistPage: FC = () => {
 
     if (artworkIds.length > 0) {
       void generateCollageCover(artworkIds).then((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          setCollageUrl(url);
+        if (!active) return;
+        const safeUrl = safeBlobUrl(blob);
+        if (safeUrl) {
+          url = safeUrl;
+          setCollageUrl(safeUrl);
         }
       });
     }
+
+    return () => {
+      active = false;
+      if (url && url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    };
   }, [playlist, rawPlaylistTracks, tracksMap]);
 
   // Handle smart playlist vs manual
@@ -404,9 +417,7 @@ export const PlaylistPage: FC = () => {
     );
   }
 
-  const coverSrc = playlist.customCover
-    ? URL.createObjectURL(playlist.customCover)
-    : collageUrl;
+  const coverSrc = safeBlobUrl(playlist.customCover) || collageUrl;
 
   return (
     <div className="route-enter">

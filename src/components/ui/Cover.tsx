@@ -1,6 +1,7 @@
 import { type FC, useState, useEffect } from 'react';
 import { MusicNotes, User } from '@phosphor-icons/react';
 import { db } from '@/db/schema';
+import { safeBlobUrl } from '@/lib/blobUrl';
 
 export interface CoverProps {
   artworkId?: string | null;
@@ -48,8 +49,9 @@ export const Cover: FC<CoverProps> = ({
 
     db.artwork.get(artworkId).then((art) => {
       if (!active) return;
-      if (art?.thumb || art?.full) {
-        url = URL.createObjectURL(art.thumb ?? art.full);
+      const safe = safeBlobUrl(art?.thumb) || safeBlobUrl(art?.full);
+      if (safe) {
+        url = safe;
         setBlobUrl(url);
         setError(false);
       } else {
@@ -61,7 +63,9 @@ export const Cover: FC<CoverProps> = ({
 
     return () => {
       active = false;
-      if (url) URL.revokeObjectURL(url);
+      if (url && url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
     };
   }, [artworkId]);
 

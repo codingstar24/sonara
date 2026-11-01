@@ -22,6 +22,7 @@ import { importPipeline } from '@/features/import/importPipeline';
 import { Folder, MusicNotes, FileText } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
 import { Cover } from '@/components/ui/Cover';
+import { ImportModal } from '@/features/import/ImportModal';
 import type { TrackLite } from '@/db/types';
 
 export const HomePage: FC = () => {
@@ -37,6 +38,7 @@ export const HomePage: FC = () => {
   const [shelfData, setShelfData] = useState<HomeShelfData | null>(null);
   const [loading, setLoading] = useState(true);
   const [mostPlayedTab, setMostPlayedTab] = useState<'today' | 'sevenDays' | 'thirtyDays' | 'allTime'>('sevenDays');
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const fetchRecs = async (force = false) => {
     setLoading(true);
@@ -178,7 +180,7 @@ export const HomePage: FC = () => {
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             <Button
               variant="primary"
-              onClick={() => void importPipeline.importFolder({ createPlaylistPerFolder: true })}
+              onClick={() => setImportModalOpen(true)}
             >
               <Folder size={18} weight="fill" />
               <span>Connect Music Folder</span>
@@ -1035,6 +1037,8 @@ export const HomePage: FC = () => {
           </div>
         </div>
       )}
+
+      <ImportModal open={importModalOpen} onOpenChange={setImportModalOpen} />
     </div>
   );
 };

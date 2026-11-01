@@ -394,6 +394,7 @@ export class ImportPipeline {
       }
 
       await flushBatch();
+      await useLibraryStore.getState().hydrate();
       useLibraryStore.getState().rebuildDerived();
 
       // Create or update playlists from folders (always on by default)
@@ -443,8 +444,9 @@ export class ImportPipeline {
             await db.playlistTracks.bulkPut(plTracks);
           }
         }
-        await usePlaylistStore.getState().hydrate();
       }
+
+      await usePlaylistStore.getState().hydrate();
 
       if (addedCount === 0 && dupCount > 0) {
         toast.info(`All ${dupCount} ${dupCount === 1 ? 'song' : 'songs'} in this folder are already in your library.`);

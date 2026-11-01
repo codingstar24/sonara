@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, Image as ImageIcon } from '@phosphor-icons/react';
 import { usePlaylistStore } from './playlistStore';
 import { cropImageToSquareBlob } from './playlistCover';
+import { safeBlobUrl } from '@/lib/blobUrl';
 import type { Playlist } from '@/db/types';
 
 interface EditPlaylistModalProps {
@@ -135,9 +136,9 @@ export const EditPlaylistModal: FC<EditPlaylistModalProps> = ({
                   alt="Preview"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
-              ) : playlist.customCover ? (
+              ) : safeBlobUrl(playlist.customCover) ? (
                 <img
-                  src={URL.createObjectURL(playlist.customCover)}
+                  src={safeBlobUrl(playlist.customCover)!}
                   alt="Cover"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />

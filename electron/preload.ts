@@ -76,7 +76,7 @@ const bridge: ElectronSonaraBridge = {
       const parts = normalized.split('/').map((seg) => encodeURIComponent(seg));
       const encoded = parts.join('/');
       const full = drivePrefix ? `${drivePrefix}${encoded}` : encoded;
-      return `local-media://${full.startsWith('/') ? full : `/${full}`}`;
+      return `local-media://media/${full.replace(/^\/+/, '')}`;
     },
   },
 };

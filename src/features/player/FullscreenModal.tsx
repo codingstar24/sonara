@@ -23,6 +23,7 @@ import { playbackClock } from '@/engine/clock';
 import { Cover } from '@/components/ui/Cover';
 import { LyricsViewer } from '@/features/lyrics/LyricsViewer';
 import { Visualizer } from '@/features/audio/Visualizer';
+import { safeBlobUrl } from '@/lib/blobUrl';
 
 interface FullscreenModalProps {
   isOpen: boolean;
@@ -108,13 +109,16 @@ export const FullscreenModal: FC<FullscreenModalProps> = ({ isOpen, onClose }) =
       db.artwork.get(lite.artworkId).then((art) => {
         if (!active) return;
         if (art?.dominantColor) setDominantColor(art.dominantColor);
-        if (art?.full) setArtworkBlobUrl(URL.createObjectURL(art.full));
+        const safe = safeBlobUrl(art?.full);
+        if (safe) setArtworkBlobUrl(safe);
       });
     }
 
     return () => {
       active = false;
-      if (artworkBlobUrl) URL.revokeObjectURL(artworkBlobUrl);
+      if (artworkBlobUrl && artworkBlobUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(artworkBlobUrl);
+      }
     };
   }, [currentTrackId, libraryTracks]);
 
