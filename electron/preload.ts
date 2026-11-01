@@ -65,8 +65,16 @@ const bridge: ElectronSonaraBridge = {
       return () => ipcRenderer.removeListener('media-command', listener);
     },
     toMediaUrl: (absolutePath: string) => {
-      const normalized = absolutePath.replace(/\\/g, '/');
-      return `local-media://${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
+      let normalized = absolutePath.replace(/\\/g, '/');
+      let drivePrefix = '';
+      if (/^[a-zA-Z]:/.test(normalized)) {
+        drivePrefix = normalized.substring(0, 2);
+        normalized = normalized.substring(2);
+      }
+      const parts = normalized.split('/').map((seg) => encodeURIComponent(seg));
+      const encoded = parts.join('/');
+      const full = drivePrefix ? `${drivePrefix}${encoded}` : encoded;
+      return `local-media://${full.startsWith('/') ? full : `/${full}`}`;
     },
   },
 };

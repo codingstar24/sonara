@@ -90,7 +90,25 @@ export class AudioEngine {
 
     const handleError = () => {
       this.consecutiveFailures++;
-      const err = new Error(`Audio decode/playback error on deck ${this.activeDeck}`);
+      const audio = this.getActiveAudio();
+      const code = audio.error?.code;
+      const msg = audio.error?.message;
+      console.error(`[AudioEngine] Deck ${this.activeDeck} error:`, {
+        code,
+        message: msg,
+        src: audio.src,
+        networkState: audio.networkState,
+        readyState: audio.readyState,
+      });
+      const reason =
+        code === 4
+          ? 'Audio format not supported or file missing'
+          : code === 3
+            ? 'Audio decoding error'
+            : code === 2
+              ? 'Network error loading audio'
+              : msg || 'Audio playback error';
+      const err = new Error(reason);
       this.events.onError?.(err);
     };
 
@@ -189,6 +207,7 @@ export class AudioEngine {
 
     const audio = this.getActiveAudio();
     audio.src = playable.url;
+    audio.load();
     audio.playbackRate = this.speed;
 
     this.sessionStartTime = Date.now();

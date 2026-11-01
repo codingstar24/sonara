@@ -14,6 +14,18 @@ export class BrowserAdapter implements PlatformAdapter {
     typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 
   private fallbackFiles: File[] = [];
+  private fileMap = new Map<string, File>();
+
+  public registerFiles(files: File[]) {
+    for (const f of files) {
+      this.fileMap.set(f.name, f);
+      this.fileMap.set(f.name.toLowerCase(), f);
+      if (f.webkitRelativePath) {
+        this.fileMap.set(f.webkitRelativePath, f);
+        this.fileMap.set(f.webkitRelativePath.toLowerCase(), f);
+      }
+    }
+  }
 
   async pickFiles(): Promise<SourceRef[]> {
     if (this.supportsFileSystemAccess) {
@@ -199,6 +211,17 @@ export class BrowserAdapter implements PlatformAdapter {
         const url = URL.createObjectURL(file);
         return { url, dispose: () => URL.revokeObjectURL(url) };
       }
+    }
+
+    // Check direct / registered files map
+    const mapped =
+      this.fileMap.get(track.relPath) ||
+      this.fileMap.get(track.relPath.toLowerCase()) ||
+      this.fileMap.get(track.title) ||
+      this.fileMap.get(track.title.toLowerCase());
+    if (mapped) {
+      const url = URL.createObjectURL(mapped);
+      return { url, dispose: () => URL.revokeObjectURL(url) };
     }
 
     // Check fallback files if handle is unavailable

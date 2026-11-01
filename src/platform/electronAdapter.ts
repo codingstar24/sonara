@@ -104,7 +104,7 @@ export class ElectronAdapter implements PlatformAdapter {
 
           yield {
             name: item.name,
-            relPath: item.relPath,
+            relPath: item.fullPath,
             size: item.size,
             lastModified: item.lastModified,
             file,
@@ -129,14 +129,14 @@ export class ElectronAdapter implements PlatformAdapter {
     source: Source
   ): Promise<{ url: string; dispose(): void }> {
     const bridge = getBridge();
-    const root = source.path ? source.path.replace(/\\/g, '/') : '';
     const rel = track.relPath.replace(/\\/g, '/');
+    let fullPath = rel;
 
-    let fullPath = root;
-    if (root) {
-      fullPath = rel.startsWith(root) ? rel : `${root.replace(/\/$/, '')}/${rel.replace(/^\//, '')}`;
-    } else {
-      fullPath = rel;
+    if (!/^[a-zA-Z]:\//.test(fullPath) && !fullPath.startsWith('/')) {
+      const root = source?.path ? source.path.replace(/\\/g, '/') : '';
+      if (root) {
+        fullPath = `${root.replace(/\/$/, '')}/${rel.replace(/^\//, '')}`;
+      }
     }
 
     const url = bridge

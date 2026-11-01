@@ -47,7 +47,7 @@ export class ImportPipeline {
       await db.sources.put(source);
     }
 
-    await this.scanSource(source, options);
+    await this.scanSource(source, { ...options, createPlaylistPerFolder: true });
   }
 
   async importFiles(): Promise<void> {
@@ -186,6 +186,8 @@ export class ImportPipeline {
           await db.artwork.bulkPut(artworkBatch);
         }
         useLibraryStore.getState().addTracks(liteBatch);
+        useLibraryStore.getState().rebuildDerived();
+        await usePlaylistStore.getState().hydrate();
       }
 
       if (addedCount === 0 && dupCount > 0) {
@@ -211,9 +213,10 @@ export class ImportPipeline {
     store.startImport();
 
     const allowDuplicates = useSettingsStore.getState().allowDuplicates;
-    const existingFingerprints = new Set(
-      Array.from(useLibraryStore.getState().tracks.values()).map((t) => t.fingerprint)
-    );
+    const existingTracks = Array.from(useLibraryStore.getState().tracks.values());
+    const existingFingerprints = new Set(existingTracks.map((t) => t.fingerprint));
+    const existingTracksByFingerprint = new Map(existingTracks.map((t) => [t.fingerprint, t.id]));
+    const existingTracksByPath = new Map(existingTracks.map((t) => [t.relPath, t.id]));
 
     let addedCount = 0;
     let dupCount = 0;
@@ -260,8 +263,22 @@ export class ImportPipeline {
               continue;
             }
 
+            // Determine folder name for playlist creation
+            const segs = scanned.relPath.split(/[/\\]/);
+            const folderName = segs.length > 1 ? segs[segs.length - 2]! : source.name;
+
             if (!allowDuplicates && existingFingerprints.has(result.track.fingerprint)) {
               dupCount++;
+              // Even if track is already in library, add to folder playlist!
+              const existingId =
+                existingTracksByFingerprint.get(result.track.fingerprint) ||
+                existingTracksByPath.get(scanned.relPath) ||
+                result.track.id;
+              const existingList = folderMap.get(folderName) ?? [];
+              if (!existingList.includes(existingId)) {
+                existingList.push(existingId);
+              }
+              folderMap.set(folderName, existingList);
               continue;
             }
 
@@ -317,13 +334,11 @@ export class ImportPipeline {
             }
 
             // Track folder for playlist generation
-            if (options.createPlaylistPerFolder) {
-              const segs = scanned.relPath.split(/[/\\]/);
-              const folderName = segs.length > 1 ? segs[segs.length - 2]! : source.name;
-              const existingList = folderMap.get(folderName) ?? [];
+            const existingList = folderMap.get(folderName) ?? [];
+            if (!existingList.includes(result.track.id)) {
               existingList.push(result.track.id);
-              folderMap.set(folderName, existingList);
             }
+            folderMap.set(folderName, existingList);
 
             addedCount++;
 
@@ -337,35 +352,54 @@ export class ImportPipeline {
       }
 
       await flushBatch();
+      useLibraryStore.getState().rebuildDerived();
 
-      // Create playlists from folders if requested
-      if (options.createPlaylistPerFolder && folderMap.size > 0) {
+      // Create or update playlists from folders (always on by default)
+      if (options.createPlaylistPerFolder !== false && folderMap.size > 0) {
+        const allPlaylists = await db.playlists.toArray();
         for (const [folderName, trackIds] of folderMap.entries()) {
           if (trackIds.length === 0) continue;
-          const plId = `pl_folder_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-          const pl: Playlist = {
-            id: plId,
-            name: folderName,
-            kind: 'manual',
-            description: '',
-            smartRules: null,
-            coverArtworkId: null,
-            customCover: null,
-            parentFolderId: null,
-            sortMode: 'custom',
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          };
-          await db.playlists.put(pl);
 
-          const plTracks: PlaylistTrack[] = trackIds.map((tid, idx) => ({
-            id: `plt_${plId}_${idx}`,
-            playlistId: plId,
-            trackId: tid,
-            order: ORDER_KEY_INITIAL + idx * ORDER_KEY_GAP,
-            addedAt: Date.now(),
-          }));
-          await db.playlistTracks.bulkPut(plTracks);
+          let targetPl = allPlaylists.find(
+            (p) => p.name.toLowerCase() === folderName.toLowerCase()
+          );
+
+          let plId: string;
+          if (!targetPl) {
+            plId = `pl_folder_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            targetPl = {
+              id: plId,
+              name: folderName,
+              kind: 'manual',
+              description: `Imported folder (${source.path || source.name})`,
+              smartRules: null,
+              coverArtworkId: null,
+              customCover: null,
+              parentFolderId: null,
+              sortMode: 'custom',
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+            await db.playlists.put(targetPl);
+          } else {
+            plId = targetPl.id;
+          }
+
+          const existingPlTracks = await db.playlistTracks.where('playlistId').equals(plId).toArray();
+          const existingTrackSet = new Set(existingPlTracks.map((pt) => pt.trackId));
+          const newTrackIds = trackIds.filter((tid) => !existingTrackSet.has(tid));
+
+          if (newTrackIds.length > 0) {
+            const startOrder = existingPlTracks.length * ORDER_KEY_GAP;
+            const plTracks: PlaylistTrack[] = newTrackIds.map((tid, idx) => ({
+              id: `plt_${plId}_${Date.now()}_${idx}`,
+              playlistId: plId,
+              trackId: tid,
+              order: startOrder + idx * ORDER_KEY_GAP,
+              addedAt: Date.now(),
+            }));
+            await db.playlistTracks.bulkPut(plTracks);
+          }
         }
         await usePlaylistStore.getState().hydrate();
       }
@@ -491,6 +525,11 @@ export class ImportPipeline {
     }
 
     if (directAudioFiles.length > 0) {
+      const platform = getPlatform();
+      if ('registerFiles' in platform && typeof (platform as any).registerFiles === 'function') {
+        (platform as any).registerFiles(directAudioFiles);
+      }
+
       const sourceId = `src_dropped_${Date.now()}`;
       const source: Source = {
         id: sourceId,
@@ -505,13 +544,15 @@ export class ImportPipeline {
       const store = useImportStore.getState();
       store.startImport();
       const allowDuplicates = useSettingsStore.getState().allowDuplicates;
-      const existingFingerprints = new Set(
-        Array.from(useLibraryStore.getState().tracks.values()).map((t) => t.fingerprint)
-      );
+      const existingTracks = Array.from(useLibraryStore.getState().tracks.values());
+      const existingFingerprints = new Set(existingTracks.map((t) => t.fingerprint));
+      const existingTracksByFingerprint = new Map(existingTracks.map((t) => [t.fingerprint, t.id]));
+      const existingTracksByPath = new Map(existingTracks.map((t) => [t.relPath, t.id]));
 
       let addedCount = 0;
       let dupCount = 0;
       let unsupportedCount = 0;
+      const folderMap = new Map<string, string[]>();
       const tracksBatch: Track[] = [];
       const artworkBatch: Artwork[] = [];
       const liteBatch: TrackLite[] = [];
@@ -521,7 +562,10 @@ export class ImportPipeline {
           const file = directAudioFiles[i]!;
           store.updateProgress(file.name, i + 1, directAudioFiles.length);
 
-          const filePath = (file as any).path ? (file as any).path.replace(/\\/g, '/') : file.name;
+          const filePath = (file as any).path ? (file as any).path.replace(/\\/g, '/') : (file.webkitRelativePath || file.name);
+          const segs = filePath.split('/');
+          const folderName = segs.length > 1 ? segs[segs.length - 2]! : 'Dropped Music';
+
           const result = await importWorkerPool.parseFile({
             sourceId,
             relPath: filePath,
@@ -534,6 +578,15 @@ export class ImportPipeline {
           if (result.success && result.track) {
             if (!allowDuplicates && existingFingerprints.has(result.track.fingerprint)) {
               dupCount++;
+              const existingId =
+                existingTracksByFingerprint.get(result.track.fingerprint) ||
+                existingTracksByPath.get(filePath) ||
+                result.track.id;
+              const existingList = folderMap.get(folderName) ?? [];
+              if (!existingList.includes(existingId)) {
+                existingList.push(existingId);
+              }
+              folderMap.set(folderName, existingList);
               continue;
             }
             existingFingerprints.add(result.track.fingerprint);
@@ -587,6 +640,12 @@ export class ImportPipeline {
               });
             }
 
+            const existingList = folderMap.get(folderName) ?? [];
+            if (!existingList.includes(result.track.id)) {
+              existingList.push(result.track.id);
+            }
+            folderMap.set(folderName, existingList);
+
             addedCount++;
           }
         }
@@ -597,6 +656,58 @@ export class ImportPipeline {
             await db.artwork.bulkPut(artworkBatch);
           }
           useLibraryStore.getState().addTracks(liteBatch);
+        }
+
+        useLibraryStore.getState().rebuildDerived();
+
+        // Create or update playlist for dropped folders/songs
+        if (folderMap.size > 0) {
+          const allPlaylists = await db.playlists.toArray();
+          for (const [folderName, trackIds] of folderMap.entries()) {
+            if (trackIds.length === 0) continue;
+
+            let targetPl = allPlaylists.find(
+              (p) => p.name.toLowerCase() === folderName.toLowerCase()
+            );
+
+            let plId: string;
+            if (!targetPl) {
+              plId = `pl_dropped_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+              targetPl = {
+                id: plId,
+                name: folderName,
+                kind: 'manual',
+                description: 'Imported audio files',
+                smartRules: null,
+                coverArtworkId: null,
+                customCover: null,
+                parentFolderId: null,
+                sortMode: 'custom',
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              };
+              await db.playlists.put(targetPl);
+            } else {
+              plId = targetPl.id;
+            }
+
+            const existingPlTracks = await db.playlistTracks.where('playlistId').equals(plId).toArray();
+            const existingTrackSet = new Set(existingPlTracks.map((pt) => pt.trackId));
+            const newTrackIds = trackIds.filter((tid) => !existingTrackSet.has(tid));
+
+            if (newTrackIds.length > 0) {
+              const startOrder = existingPlTracks.length * ORDER_KEY_GAP;
+              const plTracks: PlaylistTrack[] = newTrackIds.map((tid, idx) => ({
+                id: `plt_${plId}_${Date.now()}_${idx}`,
+                playlistId: plId,
+                trackId: tid,
+                order: startOrder + idx * ORDER_KEY_GAP,
+                addedAt: Date.now(),
+              }));
+              await db.playlistTracks.bulkPut(plTracks);
+            }
+          }
+          await usePlaylistStore.getState().hydrate();
         }
 
         if (addedCount > 0) {

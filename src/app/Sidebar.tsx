@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   useMemo,
-  useEffect,
 } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -23,8 +22,6 @@ import {
   User,
 } from '@phosphor-icons/react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { db } from '@/db/schema';
-import type { Source } from '@/db/types';
 import { Cover } from '@/components/ui/Cover';
 import { useUIStore, usePlayerStore, useLibraryStore } from './stores';
 import { usePlaylistStore } from '@/features/playlists/playlistStore';
@@ -58,18 +55,6 @@ export const Sidebar: FC = () => {
   const totalTracks = useLibraryStore((s) => s.totalTracks);
   const albumsMap = useLibraryStore((s) => s.albums);
   const artistsMap = useLibraryStore((s) => s.artists);
-
-  const [sources, setSources] = useState<Source[]>([]);
-
-  const loadSourcesList = useCallback(() => {
-    void db.sources.toArray().then((list) => {
-      setSources(list.filter((s) => !s.id.startsWith('demo-') && !s.name.toLowerCase().includes('demo music')));
-    });
-  }, []);
-
-  useEffect(() => {
-    loadSourcesList();
-  }, [totalTracks, loadSourcesList]);
 
   const albumsList = useMemo(() => {
     let list = Array.from(albumsMap.values());
@@ -150,7 +135,6 @@ export const Sidebar: FC = () => {
     { key: 'playlists', label: 'Playlists' },
     { key: 'albums', label: 'Albums' },
     { key: 'artists', label: 'Artists' },
-    { key: 'folders', label: 'Folders' },
   ];
 
   return (
@@ -546,36 +530,6 @@ export const Sidebar: FC = () => {
               />
             );
           })}
-
-        {/* Folders view */}
-        {(!filterActive || filterActive === 'folders') &&
-          sources.map((src) => (
-            <SidebarItem
-              key={`src-${src.id}`}
-              icon={
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 'var(--radius-thumb)',
-                    backgroundColor: 'var(--bg-card)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--accent)',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Folder size={24} weight="fill" />
-                </div>
-              }
-              title={src.name}
-              subtitle={`Folder • ${src.path || 'Local folder'}`}
-              isActive={location.pathname === '/folders' && location.search.includes(src.id)}
-              isCollapsed={isCollapsed}
-              onClick={() => navigate(`/folders?id=${src.id}`)}
-            />
-          ))}
 
         {/* Albums filter view */}
         {filterActive === 'albums' &&

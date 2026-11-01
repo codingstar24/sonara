@@ -105,6 +105,8 @@ function createWindow() {
   mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window-state-change', false));
 }
 
+import { Readable } from 'stream';
+
 // 3. Register Custom Protocols
 function setupProtocols() {
   // Protocol: local-media:// (streams user audio files with HTTP Range 206 support)
@@ -133,7 +135,7 @@ function setupProtocols() {
     const resolvedPath = path.resolve(filePath);
 
     if (!fs.existsSync(resolvedPath)) {
-      console.warn('local-media: File not found:', resolvedPath, 'from request:', request.url);
+      console.warn('[local-media] File not found:', resolvedPath, 'from request:', request.url);
       return new Response('File Not Found', { status: 404 });
     }
 
@@ -155,7 +157,7 @@ function setupProtocols() {
       '.aiff': 'audio/aiff',
       '.ape': 'audio/ape',
     };
-    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    const contentType = mimeTypes[ext] || 'audio/mpeg';
 
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
@@ -167,7 +169,7 @@ function setupProtocols() {
     // 3. Handle HTTP Range header for instant seeking
     if (rangeHeader) {
       const parts = rangeHeader.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
+      const start = parseInt(parts[0], 10) || 0;
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
 
       if (start >= fileSize) {
@@ -181,9 +183,10 @@ function setupProtocols() {
       }
 
       const chunkSize = end - start + 1;
-      const fileStream = fs.createReadStream(resolvedPath, { start, end });
+      const nodeStream = fs.createReadStream(resolvedPath, { start, end });
+      const webStream = Readable.toWeb(nodeStream);
 
-      return new Response(fileStream as any, {
+      return new Response(webStream as unknown as BodyInit, {
         status: 206,
         statusText: 'Partial Content',
         headers: {
@@ -197,8 +200,9 @@ function setupProtocols() {
     }
 
     // 4. Full file stream
-    const fileStream = fs.createReadStream(resolvedPath);
-    return new Response(fileStream as any, {
+    const nodeStream = fs.createReadStream(resolvedPath);
+    const webStream = Readable.toWeb(nodeStream);
+    return new Response(webStream as unknown as BodyInit, {
       status: 200,
       headers: {
         'Accept-Ranges': 'bytes',
