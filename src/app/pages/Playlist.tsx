@@ -162,12 +162,16 @@ const SortableRow: FC<SortableRowProps> = ({
   );
 };
 
+const EMPTY_PLAYLIST_TRACKS: PlaylistTrack[] = [];
+
 export const PlaylistPage: FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const playlist = usePlaylistStore((s) => (id ? s.playlists.get(id) : undefined));
-  const rawPlaylistTracks = usePlaylistStore((s) => (id ? s.playlistTracks.get(id) || [] : []));
+  const rawPlaylistTracks = usePlaylistStore(
+    (s) => (id ? s.playlistTracks.get(id) : undefined)
+  ) ?? EMPTY_PLAYLIST_TRACKS;
   const pins = usePlaylistStore((s) => s.pins);
   const isPinned = id ? pins.has(id) : false;
 
@@ -178,43 +182,46 @@ export const PlaylistPage: FC = () => {
   const isLiked = useLikesStore((s) => s.isLiked);
 
   const [filterQuery, setFilterQuery] = useState('');
-  const [sortMode, setSortMode] = useState<PlaylistSortMode>(playlist?.sortMode || 'custom');
+  const sortMode: PlaylistSortMode = playlist?.sortMode || 'custom';
   const [compact, setCompact] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [collageUrl, setCollageUrl] = useState<string | null>(null);
 
-  // Sync sortMode with playlist store on load
-  useEffect(() => {
-    if (playlist?.sortMode) {
-      setSortMode(playlist.sortMode);
-    }
-  }, [playlist?.sortMode]);
+  // Compute a stable primitive key of artwork IDs (e.g. "art1,art2") to avoid object-reference re-triggers
+  const collageArtworkIdsKey = useMemo(() => {
+    if (!playlist || playlist.customCover) return '';
+    return rawPlaylistTracks
+      .map((pt) => tracksMap.get(pt.trackId)?.artworkId)
+      .filter((artId): artId is string => !!artId)
+      .slice(0, 4)
+      .join(',');
+  }, [playlist?.customCover, rawPlaylistTracks, tracksMap]);
 
-  // Generate 2x2 collage cover if no custom cover
+  // Generate 2x2 collage cover if no custom cover - triggers ONLY when collageArtworkIdsKey changes
   useEffect(() => {
     let active = true;
     let url: string | null = null;
 
-    if (!playlist || playlist.customCover) {
-      setCollageUrl(null);
+    if (!collageArtworkIdsKey) {
+      setCollageUrl((prev) => (prev ? null : prev));
       return;
     }
 
-    const artworkIds = rawPlaylistTracks
-      .map((pt) => tracksMap.get(pt.trackId)?.artworkId)
-      .filter((artId): artId is string => !!artId);
-
-    if (artworkIds.length > 0) {
-      void generateCollageCover(artworkIds).then((blob) => {
-        if (!active) return;
-        const safeUrl = safeBlobUrl(blob);
-        if (safeUrl) {
-          url = safeUrl;
-          setCollageUrl(safeUrl);
-        }
-      });
+    const artworkIds = collageArtworkIdsKey.split(',').filter(Boolean);
+    if (artworkIds.length === 0) {
+      setCollageUrl((prev) => (prev ? null : prev));
+      return;
     }
+
+    void generateCollageCover(artworkIds).then((blob) => {
+      if (!active) return;
+      const safeUrl = safeBlobUrl(blob);
+      if (safeUrl) {
+        url = safeUrl;
+        setCollageUrl((prev) => (prev !== safeUrl ? safeUrl : prev));
+      }
+    });
 
     return () => {
       active = false;
@@ -222,7 +229,7 @@ export const PlaylistPage: FC = () => {
         URL.revokeObjectURL(url);
       }
     };
-  }, [playlist, rawPlaylistTracks, tracksMap]);
+  }, [collageArtworkIdsKey]);
 
   // Handle smart playlist vs manual
   const evaluatedTracks = useMemo(() => {
@@ -770,7 +777,6 @@ export const PlaylistPage: FC = () => {
             value={sortMode}
             onChange={(e) => {
               const newMode = e.target.value as PlaylistSortMode;
-              setSortMode(newMode);
               void usePlaylistStore.getState().setSortMode(playlist.id, newMode);
             }}
             style={{
