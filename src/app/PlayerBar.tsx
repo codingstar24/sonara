@@ -19,11 +19,11 @@ import {
 } from '@phosphor-icons/react';
 import { usePlayerStore, useUIStore, useLibraryStore } from './stores';
 import { useQueueStore } from '@/features/queue/queueStore';
+import { useLikesStore } from '@/features/likes/likesStore';
 import { playbackClock, type ClockSnapshot } from '@/engine/clock';
 import { Cover } from '@/components/ui/Cover';
 import { SleepTimerPopover } from '@/features/player/SleepTimerPopover';
 import { formatTime } from '@/lib/formatters';
-import { db } from '@/db/schema';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -336,26 +336,12 @@ export const PlayerBar: FC = () => {
     currentTrackId ? s.tracks.get(currentTrackId) : null
   );
 
-  const [isLiked, setIsLiked] = useState(false);
+  const isLiked = useLikesStore((s) => (currentTrackId ? s.isLiked(currentTrackId) : false));
+  const toggleLike = useLikesStore((s) => s.toggleLike);
 
-  useEffect(() => {
-    if (!currentTrackId) {
-      setIsLiked(false);
-      return;
-    }
-    db.likes.get(currentTrackId).then((like) => setIsLiked(!!like));
-  }, [currentTrackId]);
-
-  const handleLikeToggle = async () => {
-    if (!currentTrackId) return;
-    if (isLiked) {
-      await db.likes.delete(currentTrackId);
-      setIsLiked(false);
-      toast('Removed from Liked Songs');
-    } else {
-      await db.likes.put({ trackId: currentTrackId, likedAt: Date.now() });
-      setIsLiked(true);
-      toast.success('Added to Liked Songs');
+  const handleLikeToggle = () => {
+    if (currentTrackId) {
+      void toggleLike(currentTrackId);
     }
   };
 

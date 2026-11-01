@@ -4,6 +4,7 @@ import {
   useCallback,
   useRef,
   useState,
+  useMemo,
 } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -17,9 +18,13 @@ import {
   Folder,
   MusicNotes,
   FileText,
+  Playlist as PlaylistIcon,
 } from '@phosphor-icons/react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { useUIStore } from './stores';
+import { useUIStore, usePlayerStore, useLibraryStore } from './stores';
+import { usePlaylistStore } from '@/features/playlists/playlistStore';
+import { useLikesStore } from '@/features/likes/likesStore';
+import { useQueueStore } from '@/features/queue/queueStore';
 import { SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_COLLAPSE_THRESHOLD } from '@/config/app';
 import { importPipeline } from '@/features/import/importPipeline';
 import { ImportModal } from '@/features/import/ImportModal';
@@ -35,8 +40,31 @@ export const Sidebar: FC = () => {
   const setSidebarResizing = useUIStore((s) => s.setSidebarResizing);
 
   const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterActive, setFilterActive] = useState<string | null>(null);
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const playlistsMap = usePlaylistStore((s) => s.playlists);
+  const playlistTracksMap = usePlaylistStore((s) => s.playlistTracks);
+  const pins = usePlaylistStore((s) => s.pins);
+  const likedCount = useLikesStore((s) => s.likedIds.size);
+  const currentContext = useQueueStore((s) => s.context);
+  const isAudioPlaying = usePlayerStore((s) => s.isPlaying);
+  const totalTracks = useLibraryStore((s) => s.totalTracks);
+
+  const filteredPlaylists = useMemo(() => {
+    let list = Array.from(playlistsMap.values());
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((p) => p.name.toLowerCase().includes(q));
+    }
+    return list.sort((a, b) => {
+      const aPin = pins.has(a.id) ? 1 : 0;
+      const bPin = pins.has(b.id) ? 1 : 0;
+      if (aPin !== bPin) return bPin - aPin;
+      return a.name.localeCompare(b.name);
+    });
+  }, [playlistsMap, pins, searchQuery]);
 
   const isCollapsed = collapsed || sidebarWidth <= SIDEBAR_MIN_WIDTH;
 
@@ -172,6 +200,26 @@ export const Sidebar: FC = () => {
                       fontSize: 'var(--text-body)',
                     }}
                   >
+                    <DropdownMenu.Item
+                      onClick={async () => {
+                        const newId = await usePlaylistStore.getState().createPlaylist();
+                        navigate(`/playlist/${newId}`);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-row-hover)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <PlaylistIcon size={18} />
+                      Create playlist
+                    </DropdownMenu.Item>
                     <DropdownMenu.Item
                       onClick={() => setImportModalOpen(true)}
                       style={{
@@ -328,6 +376,8 @@ export const Sidebar: FC = () => {
             <input
               type="text"
               placeholder="Search in Your Library"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               autoFocus
               style={{
                 width: '100%',
@@ -340,6 +390,7 @@ export const Sidebar: FC = () => {
                 fontSize: 'var(--text-caption)',
                 fontFamily: 'var(--font-family)',
                 outline: 'none',
+                boxSizing: 'border-box',
               }}
             />
           )}
@@ -354,36 +405,113 @@ export const Sidebar: FC = () => {
           overflowY: 'auto',
           overflowX: 'hidden',
           padding: isCollapsed ? '0 8px' : '0 8px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
         }}
       >
         {/* Liked Songs - always first */}
-        <SidebarItem
-          icon={
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 'var(--radius-thumb)',
-                background: 'var(--liked-gradient)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Heart size={20} weight="fill" color="white" />
-            </div>
-          }
-          title="Liked Songs"
-          subtitle="Playlist"
-          isActive={location.pathname === '/liked'}
-          isCollapsed={isCollapsed}
-          isPinned
-          onClick={() => navigate('/liked')}
-        />
+        {(!filterActive || filterActive === 'playlists') && (
+          <SidebarItem
+            icon={
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 'var(--radius-thumb)',
+                  background: 'linear-gradient(135deg, #450AF5, #8E8EE5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Heart size={20} weight="fill" color="white" />
+              </div>
+            }
+            title="Liked Songs"
+            subtitle={`Playlist • ${likedCount} ${likedCount === 1 ? 'song' : 'songs'}`}
+            isActive={location.pathname === '/liked'}
+            isCollapsed={isCollapsed}
+            isPinned
+            isPlaying={currentContext?.type === 'liked' && isAudioPlaying}
+            onClick={() => navigate('/liked')}
+          />
+        )}
 
-        {/* Empty state */}
-        {!isCollapsed && (
+        {/* Dynamic playlists */}
+        {(!filterActive || filterActive === 'playlists') &&
+          filteredPlaylists.map((pl) => {
+            const trackCount = playlistTracksMap.get(pl.id)?.length || 0;
+            const isPlayingThis = currentContext?.id === pl.id && isAudioPlaying;
+            const isPinnedThis = pins.has(pl.id);
+
+            return (
+              <SidebarItem
+                key={pl.id}
+                icon={
+                  pl.customCover ? (
+                    <img
+                      src={URL.createObjectURL(pl.customCover)}
+                      alt={pl.name}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 'var(--radius-thumb)',
+                        objectFit: 'cover',
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 'var(--radius-thumb)',
+                        backgroundColor: 'var(--bg-card)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--text-sub)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <PlaylistIcon size={22} />
+                    </div>
+                  )
+                }
+                title={pl.name}
+                subtitle={`${pl.kind === 'smart' ? 'Smart Playlist' : 'Playlist'} • ${trackCount} ${
+                  trackCount === 1 ? 'song' : 'songs'
+                }`}
+                isActive={location.pathname === `/playlist/${pl.id}`}
+                isCollapsed={isCollapsed}
+                isPinned={isPinnedThis}
+                isPlaying={isPlayingThis}
+                onClick={() => navigate(`/playlist/${pl.id}`)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'copy';
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  // Check dataTransfer for track IDs if custom drag
+                  const data = e.dataTransfer.getData('application/json');
+                  if (data) {
+                    try {
+                      const parsed = JSON.parse(data);
+                      if (Array.isArray(parsed.trackIds)) {
+                        void usePlaylistStore.getState().addTracksToPlaylist(pl.id, parsed.trackIds);
+                      }
+                    } catch {}
+                  }
+                }}
+              />
+            );
+          })}
+
+        {/* Empty state if no playlists and no songs */}
+        {!isCollapsed && totalTracks === 0 && playlistsMap.size === 0 && (
           <div
             style={{
               margin: '16px 8px',
@@ -463,6 +591,8 @@ interface SidebarItemProps {
   isPinned?: boolean;
   isPlaying?: boolean;
   onClick?: () => void;
+  onDrop?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
 }
 
 const SidebarItem: FC<SidebarItemProps> = ({
@@ -472,11 +602,27 @@ const SidebarItem: FC<SidebarItemProps> = ({
   isActive,
   isCollapsed,
   isPinned,
+  isPlaying,
   onClick,
+  onDrop,
+  onDragOver,
 }) => {
+  const [dragHover, setDragHover] = useState(false);
+
   return (
     <button
       onClick={onClick}
+      onDragOver={(e) => {
+        if (onDragOver) {
+          onDragOver(e);
+          setDragHover(true);
+        }
+      }}
+      onDragLeave={() => setDragHover(false)}
+      onDrop={(e) => {
+        setDragHover(false);
+        onDrop?.(e);
+      }}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -484,9 +630,13 @@ const SidebarItem: FC<SidebarItemProps> = ({
         width: '100%',
         padding: isCollapsed ? '4px' : '4px 8px',
         borderRadius: 'var(--radius-thumb)',
-        background: isActive ? 'var(--bg-row-hover)' : 'transparent',
-        border: 'none',
-        color: 'var(--text)',
+        background: dragHover
+          ? 'rgba(30, 215, 96, 0.2)'
+          : isActive
+          ? 'var(--bg-row-hover)'
+          : 'transparent',
+        border: dragHover ? '1px dashed var(--accent)' : 'none',
+        color: isPlaying ? 'var(--accent)' : 'var(--text)',
         cursor: 'pointer',
         textAlign: 'left',
         fontFamily: 'var(--font-family)',
@@ -494,10 +644,10 @@ const SidebarItem: FC<SidebarItemProps> = ({
         justifyContent: isCollapsed ? 'center' : 'flex-start',
       }}
       onMouseEnter={(e) => {
-        if (!isActive) e.currentTarget.style.background = 'var(--bg-row-hover)';
+        if (!isActive && !dragHover) e.currentTarget.style.background = 'var(--bg-row-hover)';
       }}
       onMouseLeave={(e) => {
-        if (!isActive) e.currentTarget.style.background = 'transparent';
+        if (!isActive && !dragHover) e.currentTarget.style.background = 'transparent';
       }}
     >
       {icon}
@@ -508,10 +658,50 @@ const SidebarItem: FC<SidebarItemProps> = ({
             style={{
               fontSize: 'var(--text-body)',
               fontWeight: 'var(--font-medium)',
-              color: isActive ? 'var(--text)' : 'var(--text)',
+              color: isPlaying ? 'var(--accent)' : 'var(--text)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
             }}
           >
-            {title}
+            {isPlaying && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  gap: '2px',
+                  height: '12px',
+                }}
+              >
+                <span
+                  style={{
+                    width: 2,
+                    height: '10px',
+                    background: 'var(--accent)',
+                    animation: 'equalizerBounce 0.8s infinite alternate',
+                  }}
+                />
+                <span
+                  style={{
+                    width: 2,
+                    height: '12px',
+                    background: 'var(--accent)',
+                    animation: 'equalizerBounce 1.1s infinite alternate 0.2s',
+                  }}
+                />
+                <span
+                  style={{
+                    width: 2,
+                    height: '8px',
+                    background: 'var(--accent)',
+                    animation: 'equalizerBounce 0.9s infinite alternate 0.4s',
+                  }}
+                />
+              </div>
+            )}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {title}
+            </span>
           </div>
           {subtitle && (
             <div

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { toast } from 'sonner';
 import { db, getDefaultSettings } from '@/db/schema';
 import type { AppSettings } from '@/db/types';
 import {
@@ -152,6 +153,7 @@ interface LibraryState {
   addTrack: (track: TrackLite) => void;
   addTracks: (tracks: TrackLite[]) => void;
   removeTrack: (id: string) => void;
+  removeTracks: (ids: string[]) => Promise<void>;
   updateTrack: (id: string, patch: Partial<TrackLite>) => void;
   rebuildDerived: () => void;
 }
@@ -243,6 +245,22 @@ export const useLibraryStore = create<LibraryState>()(
       const tracks = new Map(get().tracks);
       tracks.delete(id);
       set({ tracks, totalTracks: tracks.size });
+    },
+
+    async removeTracks(ids) {
+      const tracks = new Map(get().tracks);
+      for (const id of ids) {
+        tracks.delete(id);
+      }
+      set({ tracks, totalTracks: tracks.size });
+      get().rebuildDerived();
+
+      await db.transaction('rw', [db.tracks, db.likes, db.playlistTracks], async () => {
+        await db.tracks.bulkDelete(ids);
+        await db.likes.bulkDelete(ids);
+        await db.playlistTracks.where('trackId').anyOf(ids).delete();
+      });
+      toast.success(`Removed ${ids.length} ${ids.length === 1 ? 'song' : 'songs'} from library`);
     },
 
     updateTrack(id, patch) {

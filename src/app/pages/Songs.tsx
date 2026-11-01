@@ -1,17 +1,24 @@
 import { type FC, useMemo, useState } from 'react';
 import { useLibraryStore, usePlayerStore } from '../stores';
 import { useQueueStore } from '@/features/queue/queueStore';
+import { useLikesStore } from '@/features/likes/likesStore';
 import { TrackRow } from '@/components/ui/TrackRow';
+import { TrackContextMenu } from '@/components/ui/TrackContextMenu';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { MusicNotes, Play } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/Button';
+import type { TrackLite } from '@/db/types';
 
 export const SongsPage: FC = () => {
   const tracksMap = useLibraryStore((s) => s.tracks);
   const tracks = useMemo(() => Array.from(tracksMap.values()), [tracksMap]);
   const [filter, setFilter] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const currentTrackId = usePlayerStore((s) => s.currentTrackId);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const isLiked = useLikesStore((s) => s.isLiked);
+  const toggleLike = useLikesStore((s) => s.toggleLike);
 
   const filteredTracks = useMemo(() => {
     if (!filter.trim()) return tracks;
@@ -23,6 +30,43 @@ export const SongsPage: FC = () => {
         t.album.toLowerCase().includes(q)
     );
   }, [tracks, filter]);
+
+  const selectedTrackObjects = useMemo(() => {
+    return Array.from(selectedIds)
+      .map((id) => tracksMap.get(id))
+      .filter((t): t is TrackLite => !!t);
+  }, [selectedIds, tracksMap]);
+
+  const handleSelect = (e: React.MouseEvent, track: TrackLite, idx: number) => {
+    if (e.shiftKey && selectedIds.size > 0) {
+      const lastSelectedId = Array.from(selectedIds)[selectedIds.size - 1]!;
+      const lastIdx = filteredTracks.findIndex((t) => t.id === lastSelectedId);
+      if (lastIdx !== -1) {
+        const start = Math.min(lastIdx, idx);
+        const end = Math.max(lastIdx, idx);
+        const nextSet = new Set(selectedIds);
+        for (let i = start; i <= end; i++) {
+          const item = filteredTracks[i];
+          if (item) nextSet.add(item.id);
+        }
+        setSelectedIds(nextSet);
+        return;
+      }
+    }
+
+    if (e.ctrlKey || e.metaKey) {
+      const nextSet = new Set(selectedIds);
+      if (nextSet.has(track.id)) {
+        nextSet.delete(track.id);
+      } else {
+        nextSet.add(track.id);
+      }
+      setSelectedIds(nextSet);
+      return;
+    }
+
+    setSelectedIds(new Set([track.id]));
+  };
 
   return (
     <div className="route-enter" style={{ padding: '24px 32px' }}>
@@ -128,17 +172,38 @@ export const SongsPage: FC = () => {
 
           {filteredTracks.map((t, idx) => {
             const isCurrent = t.id === currentTrackId;
+            const isSelected = selectedIds.has(t.id);
+
             return (
-              <TrackRow
+              <TrackContextMenu
                 key={t.id}
                 track={t}
-                index={idx}
-                isCurrent={isCurrent}
-                isPlaying={isCurrent && isPlaying}
-                onPlay={() => {
-                  if (isCurrent) {
-                    void useQueueStore.getState().togglePlay();
-                  } else {
+                selectedTracks={selectedTrackObjects}
+              >
+                <TrackRow
+                  track={t}
+                  index={idx}
+                  isCurrent={isCurrent}
+                  isPlaying={isCurrent && isPlaying}
+                  isLiked={isLiked(t.id)}
+                  selected={isSelected}
+                  onSelect={(e) => handleSelect(e, t, idx)}
+                  onPlay={() => {
+                    if (isCurrent) {
+                      void useQueueStore.getState().togglePlay();
+                    } else {
+                      void useQueueStore
+                        .getState()
+                        .playContext(
+                          'songs',
+                          'all',
+                          'All Songs',
+                          filteredTracks.map((x) => x.id),
+                          t.id
+                        );
+                    }
+                  }}
+                  onDoubleClick={() => {
                     void useQueueStore
                       .getState()
                       .playContext(
@@ -148,20 +213,10 @@ export const SongsPage: FC = () => {
                         filteredTracks.map((x) => x.id),
                         t.id
                       );
-                  }
-                }}
-                onDoubleClick={() => {
-                  void useQueueStore
-                    .getState()
-                    .playContext(
-                      'songs',
-                      'all',
-                      'All Songs',
-                      filteredTracks.map((x) => x.id),
-                      t.id
-                    );
-                }}
-              />
+                  }}
+                  onLikeToggle={() => void toggleLike(t.id)}
+                />
+              </TrackContextMenu>
             );
           })}
         </div>

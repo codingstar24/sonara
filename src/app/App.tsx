@@ -29,6 +29,8 @@ import { ImportProgressBar } from '@/features/import/ImportProgressBar';
 import { importPipeline } from '@/features/import/importPipeline';
 import { useKeyboardShortcuts } from '@/features/player/useKeyboardShortcuts';
 import { useQueueStore } from '@/features/queue/queueStore';
+import { useLikesStore } from '@/features/likes/likesStore';
+import { usePlaylistStore } from '@/features/playlists/playlistStore';
 
 export const App: FC = () => {
   useKeyboardShortcuts();
@@ -45,6 +47,8 @@ export const App: FC = () => {
     void useSettingsStore.getState().load();
     void useLibraryStore.getState().hydrate();
     void useQueueStore.getState().loadPersisted();
+    void useLikesStore.getState().hydrate();
+    void usePlaylistStore.getState().hydrate();
 
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
